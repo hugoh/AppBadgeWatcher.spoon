@@ -2,7 +2,7 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "AppBadgeWatcher"
-obj.version = "1.0"
+obj.version = "1.0.1"
 obj.author = "Hugo Haas"
 obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
@@ -111,7 +111,7 @@ end
 function obj:updateMenuNoNotification()
 	self.menu:setTitle(self.nothingIndicator)
 	self.menu:setIcon(nil)
-	self.log.i("No active badges, showing indicator:", self.nothingIndicator)
+	self.log.d("No active badges, showing indicator:", self.nothingIndicator)
 end
 
 function obj:updateMenuWithBadges(badges)
@@ -156,7 +156,7 @@ function obj:updateMenuWithBadges(badges)
 	end
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
 	self.menu:setTitle("")
-	self.log.i("Updated menubar icon with", #activeIcons, "icons")
+	self.log.d("Updated menubar icon with", #activeIcons, "icons")
 end
 
 function obj:updateMenu()
