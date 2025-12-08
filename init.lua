@@ -12,6 +12,8 @@ obj.appsToWatch = {}
 obj.refreshInterval = 15
 obj.nothingIndicator = "・"
 obj.grayscaleIcon = true
+obj.fontSize = 6
+obj.textOffset = { x = 2, y = 0 }
 
 -- Internal
 obj.timer = nil
@@ -119,7 +121,7 @@ function obj:updateMenuWithBadges(badges)
 	local menuItemDim = 22
 	local iconDim = 19
 	local itemWidth = 25
-	local fontSize = 6
+	local fontSize = obj.fontSize
 
 	local activeIcons = {}
 	for _, appName in ipairs(self.appsToWatch) do
@@ -140,7 +142,12 @@ function obj:updateMenuWithBadges(badges)
 				text = badge,
 				textSize = fontSize,
 				textColor = { white = 1 },
-				frame = { x = menuItemDim - 1, y = 1, h = fontSize + 2, w = fontSize + 2 },
+				frame = {
+					x = itemWidth - fontSize + obj.textOffset.x,
+					y = 1 + obj.textOffset.y,
+					h = fontSize + 2,
+					w = fontSize + 2,
+				},
 			}
 			table.insert(activeIcons, iconCanvas:imageFromCanvas())
 		end
