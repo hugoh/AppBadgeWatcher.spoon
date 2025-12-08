@@ -11,6 +11,7 @@ obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
 obj.appsToWatch = {}
 obj.refreshInterval = 15
 obj.nothingIndicator = "・"
+obj.grayscaleIcon = true
 
 -- Internal
 obj.timer = nil
@@ -44,7 +45,7 @@ function obj.getIconForApp(appName, iconDim)
 		return nil
 	end
 
-	local resized = icon:setSize({ w = iconDim, h = iconDim })
+	local resized = icon:bitmapRepresentation({ w = iconDim, h = iconDim }, obj.grayscaleIcon)
 	obj.iconCache[cacheKey] = resized
 	return resized
 end
