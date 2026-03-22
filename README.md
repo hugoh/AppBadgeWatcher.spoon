@@ -48,7 +48,7 @@ spoon.AppBadgeWatcher.appsToWatch = {
 -- Optional: default configuration showed below
 spoon.AppBadgeWatcher.refreshInterval = 15  -- Update every 15 seconds
 spoon.AppBadgeWatcher.nothingIndicator = "・"  -- Shown when no notifications
-spoon.AppBadgeWatcher.grayscaleIcon = true  -- Convert app icons to grayscale
+spoon.AppBadgeWatcher.grayscaleIcon = false  -- Convert app icons to grayscale?
 spoon.AppBadgeWatcher.fontSize = 6  -- Badge font size
 spoon.AppBadgeWatcher.textOffset = { x = 2, y = 0 } -- Text offset on icon
 

@@ -11,7 +11,7 @@ obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
 obj.appsToWatch = {}
 obj.refreshInterval = 15
 obj.nothingIndicator = "・"
-obj.grayscaleIcon = true
+obj.grayscaleIcon = false
 obj.fontSize = 6
 obj.textOffset = { x = 2, y = 0 }
 
