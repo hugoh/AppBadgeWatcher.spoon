@@ -1,7 +1,7 @@
 .PHONY: test test-plain clean install install-luarocks install-busted
 
 test:
-	busted test_spec.lua --verbose
+	eval $$(luarocks path) && busted test_spec.lua --verbose
 
 test-plain:
 	lua test_init.lua
