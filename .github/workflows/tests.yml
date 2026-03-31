@@ -25,11 +25,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Lua and LuaRocks
-        run: sudo apt-get update && sudo apt-get install -y lua5.4 luarocks
+      - name: Setup Mise
+        uses: jdx/mise-action@4a894c31a8e098539d7713c3f6c6c2b4bf353ad7
+        with:
+          install: true
 
       - name: Install Busted
-        run: luarocks install busted
+        run: mise run install
 
       - name: Run tests
-        run: make test
+        run: mise run test

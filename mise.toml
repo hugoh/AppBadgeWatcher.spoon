@@ -1,0 +1,8 @@
+[tools]
+lua = "5.4"
+
+[tasks.install]
+run = "luarocks install busted"
+
+[tasks.test]
+run = "busted test_spec.lua --verbose"
