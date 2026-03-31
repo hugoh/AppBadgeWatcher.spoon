@@ -27,6 +27,7 @@ AppBadgeWatcher aims to provide a Hammerspoon-powered, configurable, lightweight
 
 1. Ensure you have [Hammerspoon](https://www.hammerspoon.org) installed
 2. Clone this repository to your Spoons directory:
+
 ```bash
 cd ~/.hammerspoon/Spoons
 git clone https://github.com/hugoh/AppBadgeWatcher.spoon.git
@@ -68,9 +69,11 @@ The Spoon periodically checks the Dock's accessibility elements for badge values
 ## Security & Permissions
 
 This Spoon requires Accessibility API access to:
+
 - Monitor dock badge values
 - Update menu bar indicators
 
 Enable access in:
+
 1. System Settings → Privacy & Security → Accessibility
 2. Add Hammerspoon to the allowed apps list
