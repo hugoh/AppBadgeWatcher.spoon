@@ -1,0 +1,37 @@
+---
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - renovate/**
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151
+        with:
+          install: true
+
+      - name: Install Busted
+        run: mise run install
+
+      - name: Run tests
+        run: mise run test
