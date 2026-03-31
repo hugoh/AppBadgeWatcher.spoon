@@ -5,7 +5,7 @@ local AppBadgeWatcher
 before_each(function()
 	mock_hs = {
 		logger = {
-			new = function(name, level)
+			new = function(_name, _level)
 				return {
 					i = function() end,
 					w = function() end,
@@ -42,7 +42,7 @@ before_each(function()
 		image = {
 			iconForFile = function(path)
 				return {
-					bitmapRepresentation = function(self, size, grayscale)
+					bitmapRepresentation = function(_self, size, grayscale)
 						return {
 							path = path,
 							size = size,
@@ -57,15 +57,15 @@ before_each(function()
 				local canvas = {}
 				local elements = {}
 
-				canvas.alpha = function(self, a) return self end
+				canvas.alpha = function(self, _a) return self end
 
 				canvas.__len = function() return #elements end
 
-				canvas.__newindex = function(self, key, value)
+				canvas.__newindex = function(_self, key, value)
 					if type(key) == "number" then elements[key] = value end
 				end
 
-				canvas.imageFromCanvas = function(self) return { elements = elements, frame = frame } end
+				canvas.imageFromCanvas = function(_self) return { elements = elements, frame = frame } end
 
 				return canvas
 			end,
@@ -77,7 +77,7 @@ before_each(function()
 						self._title = title
 						return self
 					end,
-					setIcon = function(self, icon, flag)
+					setIcon = function(self, icon, _flag)
 						self._icon = icon
 						return self
 					end,
@@ -93,7 +93,7 @@ before_each(function()
 			end,
 		},
 		timer = {
-			doEvery = function(interval, fn)
+			doEvery = function(_interval, _fn)
 				return {
 					stop = function(self) self._stopped = true end,
 				}
@@ -287,7 +287,7 @@ describe("AppBadgeWatcher", function()
 		it("clears snoozedBadges when no badges", function()
 			AppBadgeWatcher.snoozedBadges["Mail"] = 2
 			local originalGetDockBadges = AppBadgeWatcher.getDockBadges
-			AppBadgeWatcher.getDockBadges = function(self) return {} end
+			AppBadgeWatcher.getDockBadges = function(_self) return {} end
 			AppBadgeWatcher:updateMenu(true)
 			assert.is_nil(next(AppBadgeWatcher.snoozedBadges))
 			AppBadgeWatcher.getDockBadges = originalGetDockBadges
@@ -295,7 +295,7 @@ describe("AppBadgeWatcher", function()
 
 		it("shows nothingIndicator when no badges", function()
 			local originalGetDockBadges = AppBadgeWatcher.getDockBadges
-			AppBadgeWatcher.getDockBadges = function(self) return {} end
+			AppBadgeWatcher.getDockBadges = function(_self) return {} end
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
 			AppBadgeWatcher.getDockBadges = originalGetDockBadges
