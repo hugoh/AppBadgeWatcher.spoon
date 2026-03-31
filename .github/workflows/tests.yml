@@ -25,8 +25,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Lua
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Install Lua and LuaRocks
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 luarocks
+
+      - name: Install Busted
+        run: luarocks install busted
 
       - name: Run tests
         run: make test
