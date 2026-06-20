@@ -131,47 +131,50 @@ function obj:updateMenuWithBadges(badges)
 				self.snoozedBadges[appName] = 0
 			end
 			local badge = badges[appName] - self.snoozedBadges[appName]
-			if badge > 9 then
-				badge = "∞"
-			end
-			local iconCanvas = hs.canvas.new({ x = 0, y = 0, h = menuItemDim, w = itemWidth }):alpha(0)
-			iconCanvas[1] = {
-				type = "image",
-				image = obj.getIconForApp(appName, iconDim),
-				imageScaling = "none",
-				frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
-			}
-			iconCanvas[2] = {
-				type = "text",
-				text = badge,
-				textSize = fontSize,
-				textColor = { white = 1 },
-				frame = {
-					x = itemWidth - fontSize + obj.textOffset.x,
-					y = 1 + obj.textOffset.y,
-					h = fontSize + 2,
-					w = fontSize + 2,
-				},
-			}
-			if self.snoozedBadges[appName] > 0 then
-				local snoozed = self.snoozedBadges[appName]
-				if snoozed > 9 then
-					snoozed = "∞"
+			local appIcon = obj.getIconForApp(appName, iconDim)
+			if badge > 0 and appIcon then
+				if badge > 9 then
+					badge = "∞"
 				end
-				iconCanvas[3] = {
+				local iconCanvas = hs.canvas.new({ x = 0, y = 0, h = menuItemDim, w = itemWidth }):alpha(0)
+				iconCanvas[1] = {
+					type = "image",
+					image = appIcon,
+					imageScaling = "none",
+					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
+				}
+				iconCanvas[2] = {
 					type = "text",
-					text = snoozed,
+					text = badge,
 					textSize = fontSize,
 					textColor = { white = 1 },
 					frame = {
 						x = itemWidth - fontSize + obj.textOffset.x,
-						y = menuItemDim - fontSize + obj.textOffset.y,
+						y = 1 + obj.textOffset.y,
 						h = fontSize + 2,
 						w = fontSize + 2,
 					},
 				}
+				if self.snoozedBadges[appName] > 0 then
+					local snoozed = self.snoozedBadges[appName]
+					if snoozed > 9 then
+						snoozed = "∞"
+					end
+					iconCanvas[3] = {
+						type = "text",
+						text = snoozed,
+						textSize = fontSize,
+						textColor = { white = 1 },
+						frame = {
+							x = itemWidth - fontSize + obj.textOffset.x,
+							y = menuItemDim - fontSize + obj.textOffset.y,
+							h = fontSize + 2,
+							w = fontSize + 2,
+						},
+					}
+				end
+				table.insert(activeIcons, iconCanvas:imageFromCanvas())
 			end
-			table.insert(activeIcons, iconCanvas:imageFromCanvas())
 		end
 	end
 
