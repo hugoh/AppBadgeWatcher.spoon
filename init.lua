@@ -26,27 +26,19 @@ local ax = require("hs.axuielement")
 
 local function getAppPath(appName)
 	local app = hs.application.get(appName)
-	if not app then
-		return nil
-	end
+	if not app then return nil end
 	return app:bundleID() and app:path()
 end
 
 function obj.getIconForApp(appName, iconDim)
 	local cacheKey = appName .. "_" .. iconDim .. "_" .. tostring(obj.grayscaleIcon)
-	if obj.iconCache[cacheKey] then
-		return obj.iconCache[cacheKey]
-	end
+	if obj.iconCache[cacheKey] then return obj.iconCache[cacheKey] end
 
 	local appPath = getAppPath(appName)
-	if not appPath then
-		return nil
-	end
+	if not appPath then return nil end
 
 	local icon = hs.image.iconForFile(appPath)
-	if not icon then
-		return nil
-	end
+	if not icon then return nil end
 
 	local resized = icon:bitmapRepresentation({ w = iconDim, h = iconDim }, obj.grayscaleIcon)
 	obj.iconCache[cacheKey] = resized
@@ -101,18 +93,12 @@ function obj:getDockBadges()
 end
 
 local function tablesEqual(t1, t2)
-	if not t2 then
-		return false
-	end
+	if not t2 then return false end
 	for k, v in pairs(t1) do
-		if t2[k] ~= v then
-			return false
-		end
+		if t2[k] ~= v then return false end
 	end
 	for k in pairs(t2) do
-		if t1[k] == nil then
-			return false
-		end
+		if t1[k] == nil then return false end
 	end
 	return true
 end
@@ -138,9 +124,7 @@ function obj:updateMenuWithBadges(badges)
 			local badge = badges[appName] - self.snoozedBadges[appName]
 			local appIcon = obj.getIconForApp(appName, iconDim)
 			if badge > 0 and appIcon then
-				if badge > 9 then
-					badge = "∞"
-				end
+				if badge > 9 then badge = "∞" end
 				local iconCanvas = hs.canvas.new({ x = 0, y = 0, h = menuItemDim, w = itemWidth }):alpha(0)
 				iconCanvas[1] = {
 					type = "image",
@@ -162,9 +146,7 @@ function obj:updateMenuWithBadges(badges)
 				}
 				if self.snoozedBadges[appName] > 0 then
 					local snoozed = self.snoozedBadges[appName]
-					if snoozed > 9 then
-						snoozed = "∞"
-					end
+					if snoozed > 9 then snoozed = "∞" end
 					iconCanvas[3] = {
 						type = "text",
 						text = snoozed,
@@ -234,18 +216,12 @@ function obj:start()
 	self:updateMenuNoNotification()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
-	self.timer = hs.timer.doEvery(self.refreshInterval, function()
-		self:updateMenu()
-	end)
+	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
 end
 
 function obj:stop()
-	if self.timer then
-		self.timer:stop()
-	end
-	if self.menu then
-		self.menu:delete()
-	end
+	if self.timer then self.timer:stop() end
+	if self.menu then self.menu:delete() end
 	self.log.i("AppBadgeWatcher stopped")
 end
 
