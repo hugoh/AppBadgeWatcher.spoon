@@ -15,6 +15,9 @@ typos = "latest"
 # yamllint = "latest"
 zizmor = "latest"
 
+[tasks.test]
+run = "busted test_spec.lua --verbose"
+
 [hooks]
 postinstall = ["luarocks install busted", "luarocks install luacheck"]
 
