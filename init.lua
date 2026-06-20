@@ -80,8 +80,13 @@ function obj:getDockBadges()
 				local badge = item.AXBadgeValue or item.AXStatusLabel
 				if title then
 					if badge then
-						self.log.d(string.format("Badge for '%s': %s", title, badge))
-						results[title] = tonumber(badge)
+						local n = tonumber(badge)
+						if n then
+							self.log.d(string.format("Badge for '%s': %s", title, badge))
+							results[title] = n
+						else
+							self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+						end
 					else
 						self.log.v(string.format("No badge for '%s'", title))
 					end
