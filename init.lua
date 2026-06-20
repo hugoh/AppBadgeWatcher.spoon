@@ -33,7 +33,7 @@ local function getAppPath(appName)
 end
 
 function obj.getIconForApp(appName, iconDim)
-	local cacheKey = appName .. "_" .. iconDim
+	local cacheKey = appName .. "_" .. iconDim .. "_" .. tostring(obj.grayscaleIcon)
 	if obj.iconCache[cacheKey] then
 		return obj.iconCache[cacheKey]
 	end
