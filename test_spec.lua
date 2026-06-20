@@ -58,14 +58,14 @@ before_each(function()
 				local elements = {}
 
 				canvas.alpha = function(self, _a) return self end
-
-				canvas.__len = function() return #elements end
-
-				canvas.__newindex = function(_self, key, value)
-					if type(key) == "number" then elements[key] = value end
-				end
-
 				canvas.imageFromCanvas = function(_self) return { elements = elements, frame = frame } end
+
+				setmetatable(canvas, {
+					__len = function(_self) return #elements end,
+					__newindex = function(_self, key, value)
+						if type(key) == "number" then elements[key] = value end
+					end,
+				})
 
 				return canvas
 			end,
