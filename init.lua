@@ -121,33 +121,38 @@ function obj:updateMenuWithBadges(badges)
 			if not self.snoozedBadges[appName] or self.snoozedBadges[appName] > badges[appName] then
 				self.snoozedBadges[appName] = 0
 			end
-			local badge = badges[appName] - self.snoozedBadges[appName]
+			local newBadge = badges[appName] - self.snoozedBadges[appName]
+			local snoozed = self.snoozedBadges[appName]
 			local appIcon = obj.getIconForApp(appName, iconDim)
-			if badge > 0 and appIcon then
-				if badge > 9 then badge = "∞" end
+			if (newBadge > 0 or snoozed > 0) and appIcon then
 				local iconCanvas = hs.canvas.new({ x = 0, y = 0, h = menuItemDim, w = itemWidth }):alpha(0)
-				iconCanvas[1] = {
+				local idx = 1
+				iconCanvas[idx] = {
 					type = "image",
 					image = appIcon,
 					imageScaling = "none",
 					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
 				}
-				iconCanvas[2] = {
-					type = "text",
-					text = badge,
-					textSize = fontSize,
-					textColor = { white = 1 },
-					frame = {
-						x = itemWidth - fontSize + obj.textOffset.x,
-						y = 1 + obj.textOffset.y,
-						h = fontSize + 2,
-						w = fontSize + 2,
-					},
-				}
-				if self.snoozedBadges[appName] > 0 then
-					local snoozed = self.snoozedBadges[appName]
+				if newBadge > 0 then
+					if newBadge > 9 then newBadge = "∞" end
+					idx = idx + 1
+					iconCanvas[idx] = {
+						type = "text",
+						text = newBadge,
+						textSize = fontSize,
+						textColor = { white = 1 },
+						frame = {
+							x = itemWidth - fontSize + obj.textOffset.x,
+							y = 1 + obj.textOffset.y,
+							h = fontSize + 2,
+							w = fontSize + 2,
+						},
+					}
+				end
+				if snoozed > 0 then
 					if snoozed > 9 then snoozed = "∞" end
-					iconCanvas[3] = {
+					idx = idx + 1
+					iconCanvas[idx] = {
 						type = "text",
 						text = snoozed,
 						textSize = fontSize,
@@ -165,6 +170,11 @@ function obj:updateMenuWithBadges(badges)
 		end
 	end
 
+	local snoozeCallback = function()
+		self.snoozedBadges = self.lastBadges
+		self:updateMenu(true)
+	end
+
 	local totalWidth = itemWidth * #activeIcons
 	local canvas = hs.canvas.new({ x = 0, y = 0, h = itemWidth, w = totalWidth }):alpha(0)
 	for i, icon in ipairs(activeIcons) do
@@ -176,10 +186,7 @@ function obj:updateMenuWithBadges(badges)
 	end
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
 	self.menu:setTitle("")
-	self.menu:setClickCallback(function()
-		self.snoozedBadges = self.lastBadges
-		self:updateMenu(true)
-	end)
+	self.menu:setClickCallback(snoozeCallback)
 	self.log.d("Updated menubar icon with", #activeIcons, "icons")
 end
 
