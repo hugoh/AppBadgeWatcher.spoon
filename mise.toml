@@ -1,4 +1,5 @@
 [tools]
+"github:orhun/git-cliff" = "latest"
 actionlint = "latest"
 dprint = "latest"
 ghalint = "latest"
@@ -14,6 +15,18 @@ tombi = "latest"
 typos = "latest"
 # yamllint = "latest"
 zizmor = "latest"
+
+[tasks.package]
+run = """
+rm -rf dist
+mkdir -p dist/AppBadgeWatcher.spoon
+cp init.lua LICENSE README.md dist/AppBadgeWatcher.spoon/
+cd dist
+zip -r ../AppBadgeWatcher.spoon.zip AppBadgeWatcher.spoon
+cd ..
+rm -rf dist
+"""
+description = "Build a self-contained AppBadgeWatcher.spoon.zip"
 
 [tasks.test]
 run = "busted test_spec.lua --verbose"
