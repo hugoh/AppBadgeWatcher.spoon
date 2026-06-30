@@ -85,34 +85,41 @@ function obj:getDockBadges()
 		return results
 	end
 
-	local topChildren = dockAX.AXChildren or {}
-	self.log.d("Found", #topChildren, "top-level Dock children")
+	local ok, err = pcall(function()
+		local topChildren = dockAX.AXChildren or {}
+		self.log.d("Found", #topChildren, "top-level Dock children")
 
-	for _, container in ipairs(topChildren) do
-		if container.AXRole == "AXList" then
-			local dockItems = container.AXChildren or {}
-			self.log.d("Found", #dockItems, "Dock items in AXList")
+		for _, container in ipairs(topChildren) do
+			if container.AXRole == "AXList" then
+				local dockItems = container.AXChildren or {}
+				self.log.d("Found", #dockItems, "Dock items in AXList")
 
-			for _, item in ipairs(dockItems) do
-				local title = item.AXTitle
-				local badge = item.AXBadgeValue or item.AXStatusLabel
-				if title then
-					if badge then
-						local n = tonumber(badge)
-						if n then
-							self.log.d(string.format("Badge for '%s': %s", title, badge))
-							results[title] = n
+				for _, item in ipairs(dockItems) do
+					local title = item.AXTitle
+					local badge = item.AXBadgeValue or item.AXStatusLabel
+					if title then
+						if badge then
+							local n = tonumber(badge)
+							if n then
+								self.log.d(string.format("Badge for '%s': %s", title, badge))
+								results[title] = n
+							else
+								self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+							end
 						else
-							self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+							self.log.v(string.format("No badge for '%s'", title))
 						end
-					else
-						self.log.v(string.format("No badge for '%s'", title))
 					end
 				end
+			else
+				self.log.v("Skipping non-AXList child with role:", container.AXRole)
 			end
-		else
-			self.log.v("Skipping non-AXList child with role:", container.AXRole)
 		end
+	end)
+
+	if not ok then
+		self.log.w("AX traversal failed (Dock may be relaunching or unresponsive):", tostring(err))
+		return {}
 	end
 
 	return results

@@ -220,6 +220,29 @@ describe("AppBadgeWatcher", function()
 			local badges = AppBadgeWatcher:getDockBadges()
 			assert.is_number(badges["Mail"])
 		end)
+
+		it("returns empty table and does not throw when AX traversal errors", function()
+			local originalApplicationElement = mock_ax.applicationElement
+			mock_ax.applicationElement = function(app)
+				if app and app.name == "Dock" then
+					return {
+						AXChildren = setmetatable({}, {
+							__index = function() error("AX timeout") end,
+						}),
+					}
+				end
+				return nil
+			end
+			package.loaded["hs.axuielement"] = mock_ax
+			AppBadgeWatcher = dofile("init.lua")
+
+			local badges
+			assert.has_no.errors(function() badges = AppBadgeWatcher:getDockBadges() end)
+			assert.is.table(badges)
+			assert.is_nil(next(badges))
+
+			mock_ax.applicationElement = originalApplicationElement
+		end)
 	end)
 
 	describe("start and stop", function()
