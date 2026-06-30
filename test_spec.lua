@@ -220,6 +220,29 @@ describe("AppBadgeWatcher", function()
 			local badges = AppBadgeWatcher:getDockBadges()
 			assert.is_number(badges["Mail"])
 		end)
+
+		it("returns empty table and does not throw when AX traversal errors", function()
+			local originalApplicationElement = mock_ax.applicationElement
+			mock_ax.applicationElement = function(app)
+				if app and app.name == "Dock" then
+					return {
+						AXChildren = setmetatable({}, {
+							__index = function() error("AX timeout") end,
+						}),
+					}
+				end
+				return nil
+			end
+			package.loaded["hs.axuielement"] = mock_ax
+			AppBadgeWatcher = dofile("init.lua")
+
+			local badges
+			assert.has_no.errors(function() badges = AppBadgeWatcher:getDockBadges() end)
+			assert.is.table(badges)
+			assert.is_nil(next(badges))
+
+			mock_ax.applicationElement = originalApplicationElement
+		end)
 	end)
 
 	describe("start and stop", function()
@@ -248,6 +271,37 @@ describe("AppBadgeWatcher", function()
 			AppBadgeWatcher:start()
 			AppBadgeWatcher:stop()
 			assert.is_true(AppBadgeWatcher.menu._deleted)
+		end)
+
+		it("clears lastBadges, snoozedBadges and iconCache on stop", function()
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:start()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Mail"] = 2
+			AppBadgeWatcher.getIconForApp("Mail", 19)
+			assert.is_not_nil(AppBadgeWatcher.lastBadges)
+			assert.is_not_nil(next(AppBadgeWatcher.snoozedBadges))
+			assert.is_not_nil(next(AppBadgeWatcher.iconCache))
+
+			AppBadgeWatcher:stop()
+
+			assert.is_nil(AppBadgeWatcher.lastBadges)
+			assert.is_nil(next(AppBadgeWatcher.snoozedBadges))
+			assert.is_nil(next(AppBadgeWatcher.iconCache))
+		end)
+
+		it("does not crash when menubar.new() returns nil", function()
+			mock_hs.menubar.new = function() return nil end
+			assert.has_no.errors(function() AppBadgeWatcher:start() end)
+			assert.is_nil(AppBadgeWatcher.menu)
+			assert.is_nil(AppBadgeWatcher.timer)
+		end)
+
+		it("does not crash calling updateMenu when menu failed to create", function()
+			mock_hs.menubar.new = function() return nil end
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:start()
+			assert.has_no.errors(function() AppBadgeWatcher:updateMenu(true) end)
 		end)
 	end)
 
@@ -343,6 +397,14 @@ describe("AppBadgeWatcher", function()
 			assert.is_not_nil(AppBadgeWatcher.menu._icon)
 			assert.is_function(AppBadgeWatcher.menu._clickCb)
 		end)
+
+		it("snoozedBadges is a copy of lastBadges, not an alias", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.menu._clickCb()
+			assert.are_not.equal(AppBadgeWatcher.lastBadges, AppBadgeWatcher.snoozedBadges)
+			AppBadgeWatcher.lastBadges["Mail"] = 999
+			assert.are_not.equal(999, AppBadgeWatcher.snoozedBadges["Mail"])
+		end)
 	end)
 
 	describe("badge display edge cases", function()
@@ -356,6 +418,13 @@ describe("AppBadgeWatcher", function()
 		it("stores badges over 9", function()
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(12, AppBadgeWatcher.lastBadges["Messages"])
+		end)
+
+		it("falls back to nothingIndicator instead of zero-width canvas when no icons resolve", function()
+			AppBadgeWatcher.getIconForApp = function(_appName, _iconDim) return nil end
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
+			assert.is_nil(AppBadgeWatcher.menu._icon)
 		end)
 	end)
 

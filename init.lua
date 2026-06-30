@@ -85,34 +85,41 @@ function obj:getDockBadges()
 		return results
 	end
 
-	local topChildren = dockAX.AXChildren or {}
-	self.log.d("Found", #topChildren, "top-level Dock children")
+	local ok, err = pcall(function()
+		local topChildren = dockAX.AXChildren or {}
+		self.log.d("Found", #topChildren, "top-level Dock children")
 
-	for _, container in ipairs(topChildren) do
-		if container.AXRole == "AXList" then
-			local dockItems = container.AXChildren or {}
-			self.log.d("Found", #dockItems, "Dock items in AXList")
+		for _, container in ipairs(topChildren) do
+			if container.AXRole == "AXList" then
+				local dockItems = container.AXChildren or {}
+				self.log.d("Found", #dockItems, "Dock items in AXList")
 
-			for _, item in ipairs(dockItems) do
-				local title = item.AXTitle
-				local badge = item.AXBadgeValue or item.AXStatusLabel
-				if title then
-					if badge then
-						local n = tonumber(badge)
-						if n then
-							self.log.d(string.format("Badge for '%s': %s", title, badge))
-							results[title] = n
+				for _, item in ipairs(dockItems) do
+					local title = item.AXTitle
+					local badge = item.AXBadgeValue or item.AXStatusLabel
+					if title then
+						if badge then
+							local n = tonumber(badge)
+							if n then
+								self.log.d(string.format("Badge for '%s': %s", title, badge))
+								results[title] = n
+							else
+								self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+							end
 						else
-							self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+							self.log.v(string.format("No badge for '%s'", title))
 						end
-					else
-						self.log.v(string.format("No badge for '%s'", title))
 					end
 				end
+			else
+				self.log.v("Skipping non-AXList child with role:", container.AXRole)
 			end
-		else
-			self.log.v("Skipping non-AXList child with role:", container.AXRole)
 		end
+	end)
+
+	if not ok then
+		self.log.w("AX traversal failed (Dock may be relaunching or unresponsive):", tostring(err))
+		return {}
 	end
 
 	return results
@@ -130,12 +137,14 @@ local function tablesEqual(t1, t2)
 end
 
 function obj:updateMenuNoNotification()
+	if not self.menu then return end
 	self.menu:setTitle(self.nothingIndicator)
 	self.menu:setIcon(nil)
 	self.log.d("No active badges, showing indicator:", self.nothingIndicator)
 end
 
 function obj:updateMenuWithBadges(badges)
+	if not self.menu then return end
 	local menuItemDim = 22
 	local iconDim = 19
 	local itemWidth = 25
@@ -196,8 +205,18 @@ function obj:updateMenuWithBadges(badges)
 		end
 	end
 
+	if #activeIcons == 0 then
+		self.log.d("No icons to display despite active badges, falling back to nothingIndicator")
+		self:updateMenuNoNotification()
+		return
+	end
+
 	local snoozeCallback = function()
-		self.snoozedBadges = self.lastBadges
+		local copy = {}
+		for k, v in pairs(self.lastBadges or {}) do
+			copy[k] = v
+		end
+		self.snoozedBadges = copy
 		self:updateMenu(true)
 	end
 
@@ -249,6 +268,10 @@ end
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
 	self.menu = hs.menubar.new()
+	if not self.menu then
+		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
+		return
+	end
 	self:updateMenuNoNotification()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
@@ -261,6 +284,9 @@ end
 function obj:stop()
 	if self.timer then self.timer:stop() end
 	if self.menu then self.menu:delete() end
+	self.lastBadges = nil
+	self.snoozedBadges = {}
+	self.iconCache = {}
 	self.log.i("AppBadgeWatcher stopped")
 end
 
