@@ -289,6 +289,20 @@ describe("AppBadgeWatcher", function()
 			assert.is_nil(next(AppBadgeWatcher.snoozedBadges))
 			assert.is_nil(next(AppBadgeWatcher.iconCache))
 		end)
+
+		it("does not crash when menubar.new() returns nil", function()
+			mock_hs.menubar.new = function() return nil end
+			assert.has_no.errors(function() AppBadgeWatcher:start() end)
+			assert.is_nil(AppBadgeWatcher.menu)
+			assert.is_nil(AppBadgeWatcher.timer)
+		end)
+
+		it("does not crash calling updateMenu when menu failed to create", function()
+			mock_hs.menubar.new = function() return nil end
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:start()
+			assert.has_no.errors(function() AppBadgeWatcher:updateMenu(true) end)
+		end)
 	end)
 
 	describe("updateMenu", function()

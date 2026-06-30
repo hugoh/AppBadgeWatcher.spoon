@@ -137,12 +137,14 @@ local function tablesEqual(t1, t2)
 end
 
 function obj:updateMenuNoNotification()
+	if not self.menu then return end
 	self.menu:setTitle(self.nothingIndicator)
 	self.menu:setIcon(nil)
 	self.log.d("No active badges, showing indicator:", self.nothingIndicator)
 end
 
 function obj:updateMenuWithBadges(badges)
+	if not self.menu then return end
 	local menuItemDim = 22
 	local iconDim = 19
 	local itemWidth = 25
@@ -260,6 +262,10 @@ end
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
 	self.menu = hs.menubar.new()
+	if not self.menu then
+		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
+		return
+	end
 	self:updateMenuNoNotification()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
