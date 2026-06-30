@@ -10,7 +10,7 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "AppBadgeWatcher"
-obj.version = "1.0.1"
+obj.version = "dev"
 obj.author = "Hugo Haas"
 obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
