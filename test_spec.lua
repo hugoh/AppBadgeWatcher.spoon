@@ -419,6 +419,13 @@ describe("AppBadgeWatcher", function()
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(12, AppBadgeWatcher.lastBadges["Messages"])
 		end)
+
+		it("falls back to nothingIndicator instead of zero-width canvas when no icons resolve", function()
+			AppBadgeWatcher.getIconForApp = function(_appName, _iconDim) return nil end
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
+			assert.is_nil(AppBadgeWatcher.menu._icon)
+		end)
 	end)
 
 	describe("internal state", function()

@@ -205,6 +205,12 @@ function obj:updateMenuWithBadges(badges)
 		end
 	end
 
+	if #activeIcons == 0 then
+		self.log.d("No icons to display despite active badges, falling back to nothingIndicator")
+		self:updateMenuNoNotification()
+		return
+	end
+
 	local snoozeCallback = function()
 		local copy = {}
 		for k, v in pairs(self.lastBadges or {}) do
