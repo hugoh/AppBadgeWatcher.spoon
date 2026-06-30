@@ -272,6 +272,23 @@ describe("AppBadgeWatcher", function()
 			AppBadgeWatcher:stop()
 			assert.is_true(AppBadgeWatcher.menu._deleted)
 		end)
+
+		it("clears lastBadges, snoozedBadges and iconCache on stop", function()
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:start()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Mail"] = 2
+			AppBadgeWatcher.getIconForApp("Mail", 19)
+			assert.is_not_nil(AppBadgeWatcher.lastBadges)
+			assert.is_not_nil(next(AppBadgeWatcher.snoozedBadges))
+			assert.is_not_nil(next(AppBadgeWatcher.iconCache))
+
+			AppBadgeWatcher:stop()
+
+			assert.is_nil(AppBadgeWatcher.lastBadges)
+			assert.is_nil(next(AppBadgeWatcher.snoozedBadges))
+			assert.is_nil(next(AppBadgeWatcher.iconCache))
+		end)
 	end)
 
 	describe("updateMenu", function()

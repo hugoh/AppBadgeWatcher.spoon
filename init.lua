@@ -272,6 +272,9 @@ end
 function obj:stop()
 	if self.timer then self.timer:stop() end
 	if self.menu then self.menu:delete() end
+	self.lastBadges = nil
+	self.snoozedBadges = {}
+	self.iconCache = {}
 	self.log.i("AppBadgeWatcher stopped")
 end
 
