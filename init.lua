@@ -1,3 +1,11 @@
+-- vim: set ft=lua:
+
+--- === AppBadgeWatcher ===
+---
+--- A Hammerspoon Spoon that monitors app dock badges and displays notification counts in your menu bar.
+---
+--- Download: https://github.com/hugoh/AppBadgeWatcher.spoon/releases/latest
+
 local obj = {}
 obj.__index = obj
 
@@ -8,11 +16,29 @@ obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
 
 -- Configurable
+--- AppBadgeWatcher.appsToWatch
+--- Variable
+--- List of application names (strings) to watch for dock badge counts.
 obj.appsToWatch = {}
+--- AppBadgeWatcher.refreshInterval
+--- Variable
+--- Seconds between badge refresh polls (default: 15).
 obj.refreshInterval = 15
+--- AppBadgeWatcher.nothingIndicator
+--- Variable
+--- Menu bar text shown when no badges are active (default: "・").
 obj.nothingIndicator = "・"
+--- AppBadgeWatcher.grayscaleIcon
+--- Variable
+--- Convert app icons to grayscale in the menu bar (default: false).
 obj.grayscaleIcon = false
+--- AppBadgeWatcher.fontSize
+--- Variable
+--- Font size for badge count labels (default: 6).
 obj.fontSize = 6
+--- AppBadgeWatcher.textOffset
+--- Variable
+--- Pixel offset {x, y} applied to badge text on the icon (default: { x = 2, y = 0 }).
 obj.textOffset = { x = 2, y = 0 }
 
 -- Internal
@@ -218,6 +244,9 @@ function obj:updateMenu(forceUpdate)
 	self:updateMenuWithBadges(filteredBadges)
 end
 
+--- AppBadgeWatcher:start()
+--- Method
+--- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
 	self.menu = hs.menubar.new()
 	self:updateMenuNoNotification()
@@ -226,6 +255,9 @@ function obj:start()
 	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
 end
 
+--- AppBadgeWatcher:stop()
+--- Method
+--- Stop the badge watcher and remove the menu bar item.
 function obj:stop()
 	if self.timer then self.timer:stop() end
 	if self.menu then self.menu:delete() end
