@@ -197,7 +197,11 @@ function obj:updateMenuWithBadges(badges)
 	end
 
 	local snoozeCallback = function()
-		self.snoozedBadges = self.lastBadges
+		local copy = {}
+		for k, v in pairs(self.lastBadges or {}) do
+			copy[k] = v
+		end
+		self.snoozedBadges = copy
 		self:updateMenu(true)
 	end
 

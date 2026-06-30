@@ -343,6 +343,14 @@ describe("AppBadgeWatcher", function()
 			assert.is_not_nil(AppBadgeWatcher.menu._icon)
 			assert.is_function(AppBadgeWatcher.menu._clickCb)
 		end)
+
+		it("snoozedBadges is a copy of lastBadges, not an alias", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.menu._clickCb()
+			assert.are_not.equal(AppBadgeWatcher.lastBadges, AppBadgeWatcher.snoozedBadges)
+			AppBadgeWatcher.lastBadges["Mail"] = 999
+			assert.are_not.equal(999, AppBadgeWatcher.snoozedBadges["Mail"])
+		end)
 	end)
 
 	describe("badge display edge cases", function()
