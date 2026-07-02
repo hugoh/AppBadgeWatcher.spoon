@@ -8,6 +8,7 @@ before_each(function()
 			new = function(_name, _level)
 				return {
 					i = function() end,
+					f = function() end,
 					w = function() end,
 					d = function() end,
 					v = function() end,

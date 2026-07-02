@@ -267,6 +267,7 @@ end
 --- Method
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
+	self.log.f("Starting %s v%s", self.name, self.version)
 	self.menu = hs.menubar.new()
 	if not self.menu then
 		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
@@ -282,12 +283,12 @@ end
 --- Method
 --- Stop the badge watcher and remove the menu bar item.
 function obj:stop()
+	self.log.f("Stopping %s v%s", self.name, self.version)
 	if self.timer then self.timer:stop() end
 	if self.menu then self.menu:delete() end
 	self.lastBadges = nil
 	self.snoozedBadges = {}
 	self.iconCache = {}
-	self.log.i("AppBadgeWatcher stopped")
 end
 
 return obj
