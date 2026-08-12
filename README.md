@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Hammerspoon Spoon](https://img.shields.io/badge/Hammerspoon-Spoon-FFA500.svg)](https://www.hammerspoon.org/docs/index.html)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hugoh.github.io/AppBadgeWatcher.spoon/)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://appbadgewatcher-spoon.larve.net/)
 
 A Hammerspoon Spoon that monitors app dock badges and displays notification counts in your menu bar.
 
@@ -97,4 +97,4 @@ Enable access in:
 
 ## API documentation
 
-Full API reference is available at **<https://hugoh.github.io/AppBadgeWatcher.spoon/>**.
+Full API reference is available at **<https://appbadgewatcher-spoon.larve.net/>**.
