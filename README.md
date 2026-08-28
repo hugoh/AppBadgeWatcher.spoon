@@ -75,6 +75,17 @@ spoon.AppBadgeWatcher.textOffset = { x = 2, y = 0 } -- Text offset on icon
 spoon.AppBadgeWatcher:start()
 ```
 
+The same settings can be passed as a table to `:configure()`, which returns the
+spoon so calls can be chained:
+
+```lua
+hs.loadSpoon("AppBadgeWatcher")
+spoon.AppBadgeWatcher:configure({
+    appsToWatch = { "Slack", "Microsoft Teams" },
+    infiniteThreshold = 9,
+}):start()
+```
+
 ## How It Works
 
 The Spoon periodically checks the Dock's accessibility elements for badge values on specified applications. Key features:

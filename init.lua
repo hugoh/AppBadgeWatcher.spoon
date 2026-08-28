@@ -267,6 +267,28 @@ function obj:updateMenu(forceUpdate)
 	self:updateMenuWithBadges(filteredBadges)
 end
 
+--- AppBadgeWatcher:configure(opts)
+--- Method
+--- Set one or more of AppBadgeWatcher's spoon-level variables from a table. Call before `:start()`.
+---
+--- Parameters:
+---  * opts - a table with any of `appsToWatch`, `refreshInterval`, `nothingIndicator`,
+---    `grayscaleIcon`, `fontSize`, `textOffset`, `infiniteThreshold`
+function obj:configure(opts)
+	for _, key in ipairs({
+		"appsToWatch",
+		"refreshInterval",
+		"nothingIndicator",
+		"grayscaleIcon",
+		"fontSize",
+		"textOffset",
+		"infiniteThreshold",
+	}) do
+		if opts[key] ~= nil then self[key] = opts[key] end
+	end
+	return self
+end
+
 --- AppBadgeWatcher:start()
 --- Method
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
@@ -275,12 +297,13 @@ function obj:start()
 	self.menu = hs.menubar.new()
 	if not self.menu then
 		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
-		return
+		return self
 	end
 	self:updateMenuNoNotification()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
 	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
+	return self
 end
 
 --- AppBadgeWatcher:stop()
@@ -293,6 +316,7 @@ function obj:stop()
 	self.lastBadges = nil
 	self.snoozedBadges = {}
 	self.iconCache = {}
+	return self
 end
 
 return obj
