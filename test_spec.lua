@@ -421,11 +421,48 @@ describe("AppBadgeWatcher", function()
 			assert.are.equal(12, AppBadgeWatcher.lastBadges["Messages"])
 		end)
 
+		local function badgeText()
+			for _, outer in ipairs(AppBadgeWatcher.menu._icon.elements) do
+				for _, inner in ipairs(outer.image.elements) do
+					if inner.type == "text" then return inner.text end
+				end
+			end
+		end
+
+		it("has default infiniteThreshold of 9", function() assert.are.equal(9, AppBadgeWatcher.infiniteThreshold) end)
+
+		it("shows infinity symbol for counts over infiniteThreshold", function()
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal("∞", badgeText())
+		end)
+
+		it("shows the number when count is within a raised infiniteThreshold", function()
+			AppBadgeWatcher.infiniteThreshold = 20
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal(12, badgeText())
+		end)
+
 		it("falls back to nothingIndicator instead of zero-width canvas when no icons resolve", function()
 			AppBadgeWatcher.getIconForApp = function(_appName, _iconDim) return nil end
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
 			assert.is_nil(AppBadgeWatcher.menu._icon)
+		end)
+	end)
+
+	describe("configure", function()
+		it("sets provided fields and leaves others untouched", function()
+			local result = AppBadgeWatcher:configure({ refreshInterval = 30, infiniteThreshold = 99 })
+			assert.are.equal(30, AppBadgeWatcher.refreshInterval)
+			assert.are.equal(99, AppBadgeWatcher.infiniteThreshold)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.nothingIndicator)
+			assert.are.equal(AppBadgeWatcher, result)
+		end)
+
+		it("chains with start", function()
+			local result = AppBadgeWatcher:configure({ appsToWatch = { "Mail" } }):start()
+			assert.are.equal(AppBadgeWatcher, result)
+			assert.same({ "Mail" }, AppBadgeWatcher.appsToWatch)
 		end)
 	end)
 

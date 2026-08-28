@@ -40,6 +40,10 @@ obj.fontSize = 6
 --- Variable
 --- Pixel offset {x, y} applied to badge text on the icon (default: { x = 2, y = 0 }).
 obj.textOffset = { x = 2, y = 0 }
+--- AppBadgeWatcher.infiniteThreshold
+--- Variable
+--- Badge counts above this value are shown as "∞" instead of the number (default: 9).
+obj.infiniteThreshold = 9
 
 -- Internal
 obj.timer = nil
@@ -169,7 +173,7 @@ function obj:updateMenuWithBadges(badges)
 					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
 				}
 				if newBadge > 0 then
-					if newBadge > 9 then newBadge = "∞" end
+					if newBadge > obj.infiniteThreshold then newBadge = "∞" end
 					idx = idx + 1
 					iconCanvas[idx] = {
 						type = "text",
@@ -185,7 +189,7 @@ function obj:updateMenuWithBadges(badges)
 					}
 				end
 				if snoozed > 0 then
-					if snoozed > 9 then snoozed = "∞" end
+					if snoozed > obj.infiniteThreshold then snoozed = "∞" end
 					idx = idx + 1
 					iconCanvas[idx] = {
 						type = "text",
@@ -263,6 +267,28 @@ function obj:updateMenu(forceUpdate)
 	self:updateMenuWithBadges(filteredBadges)
 end
 
+--- AppBadgeWatcher:configure(opts)
+--- Method
+--- Set one or more of AppBadgeWatcher's spoon-level variables from a table. Call before `:start()`.
+---
+--- Parameters:
+---  * opts - a table with any of `appsToWatch`, `refreshInterval`, `nothingIndicator`,
+---    `grayscaleIcon`, `fontSize`, `textOffset`, `infiniteThreshold`
+function obj:configure(opts)
+	for _, key in ipairs({
+		"appsToWatch",
+		"refreshInterval",
+		"nothingIndicator",
+		"grayscaleIcon",
+		"fontSize",
+		"textOffset",
+		"infiniteThreshold",
+	}) do
+		if opts[key] ~= nil then self[key] = opts[key] end
+	end
+	return self
+end
+
 --- AppBadgeWatcher:start()
 --- Method
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
@@ -271,12 +297,13 @@ function obj:start()
 	self.menu = hs.menubar.new()
 	if not self.menu then
 		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
-		return
+		return self
 	end
 	self:updateMenuNoNotification()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
 	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
+	return self
 end
 
 --- AppBadgeWatcher:stop()
@@ -289,6 +316,7 @@ function obj:stop()
 	self.lastBadges = nil
 	self.snoozedBadges = {}
 	self.iconCache = {}
+	return self
 end
 
 return obj
