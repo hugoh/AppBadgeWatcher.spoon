@@ -40,6 +40,10 @@ obj.fontSize = 6
 --- Variable
 --- Pixel offset {x, y} applied to badge text on the icon (default: { x = 2, y = 0 }).
 obj.textOffset = { x = 2, y = 0 }
+--- AppBadgeWatcher.infiniteThreshold
+--- Variable
+--- Badge counts above this value are shown as "∞" instead of the number (default: 9).
+obj.infiniteThreshold = 9
 
 -- Internal
 obj.timer = nil
@@ -169,7 +173,7 @@ function obj:updateMenuWithBadges(badges)
 					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
 				}
 				if newBadge > 0 then
-					if newBadge > 9 then newBadge = "∞" end
+					if newBadge > obj.infiniteThreshold then newBadge = "∞" end
 					idx = idx + 1
 					iconCanvas[idx] = {
 						type = "text",
@@ -185,7 +189,7 @@ function obj:updateMenuWithBadges(badges)
 					}
 				end
 				if snoozed > 0 then
-					if snoozed > 9 then snoozed = "∞" end
+					if snoozed > obj.infiniteThreshold then snoozed = "∞" end
 					idx = idx + 1
 					iconCanvas[idx] = {
 						type = "text",
