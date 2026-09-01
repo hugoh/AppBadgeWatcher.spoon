@@ -289,11 +289,18 @@ function obj:configure(opts)
 	return self
 end
 
+--- AppBadgeWatcher:init()
+--- Method
+--- Called automatically by `hs.loadSpoon()`. Logs the loaded version.
+function obj:init()
+	self.log.f("Loaded %s v%s", self.name, self.version)
+	return self
+end
+
 --- AppBadgeWatcher:start()
 --- Method
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
-	self.log.f("Starting %s v%s", self.name, self.version)
 	self.menu = hs.menubar.new()
 	if not self.menu then
 		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
