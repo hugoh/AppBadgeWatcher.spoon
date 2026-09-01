@@ -7,6 +7,7 @@ ghalint = "1.5.6"
 gitleaks = "8.30.1"
 hk = "1.56.1"
 lua = "5.4"
+"aqua:Kampfkarren/selene" = "0.31.0"
 uv = "0.12.7"
 rumdl = "0.2.62"
 stylua = "2.5.2"
@@ -36,7 +37,4 @@ description = "Build a self-contained AppBadgeWatcher.spoon.zip (includes docs.j
 run = "busted test_spec.lua --verbose"
 
 [hooks]
-postinstall = ["luarocks install busted", "luarocks install luacheck"]
-
-[settings]
-experimental = true
+postinstall = ["luarocks install busted"]
