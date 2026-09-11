@@ -140,6 +140,22 @@ local function tablesEqual(t1, t2)
 	return true
 end
 
+local function badgeTextItem(value, yBase, itemWidth, fontSize)
+	if value > obj.infiniteThreshold then value = "∞" end
+	return {
+		type = "text",
+		text = value,
+		textSize = fontSize,
+		textColor = { white = 1 },
+		frame = {
+			x = itemWidth - fontSize + obj.textOffset.x,
+			y = yBase + obj.textOffset.y,
+			h = fontSize + 2,
+			w = fontSize + 2,
+		},
+	}
+end
+
 function obj:updateMenuNoNotification()
 	if not self.menu then return end
 	self.menu:setTitle(self.nothingIndicator)
@@ -173,36 +189,12 @@ function obj:updateMenuWithBadges(badges)
 					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
 				}
 				if newBadge > 0 then
-					if newBadge > obj.infiniteThreshold then newBadge = "∞" end
 					idx = idx + 1
-					iconCanvas[idx] = {
-						type = "text",
-						text = newBadge,
-						textSize = fontSize,
-						textColor = { white = 1 },
-						frame = {
-							x = itemWidth - fontSize + obj.textOffset.x,
-							y = 1 + obj.textOffset.y,
-							h = fontSize + 2,
-							w = fontSize + 2,
-						},
-					}
+					iconCanvas[idx] = badgeTextItem(newBadge, 1, itemWidth, fontSize)
 				end
 				if snoozed > 0 then
-					if snoozed > obj.infiniteThreshold then snoozed = "∞" end
 					idx = idx + 1
-					iconCanvas[idx] = {
-						type = "text",
-						text = snoozed,
-						textSize = fontSize,
-						textColor = { white = 1 },
-						frame = {
-							x = itemWidth - fontSize + obj.textOffset.x,
-							y = menuItemDim - fontSize + obj.textOffset.y,
-							h = fontSize + 2,
-							w = fontSize + 2,
-						},
-					}
+					iconCanvas[idx] = badgeTextItem(snoozed, menuItemDim - fontSize, itemWidth, fontSize)
 				end
 				table.insert(activeIcons, iconCanvas:imageFromCanvas())
 			end
