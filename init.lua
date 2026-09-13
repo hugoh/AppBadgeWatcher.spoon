@@ -267,16 +267,8 @@ end
 ---  * opts - a table with any of `appsToWatch`, `refreshInterval`, `nothingIndicator`,
 ---    `grayscaleIcon`, `fontSize`, `textOffset`, `infiniteThreshold`
 function obj:configure(opts)
-	for _, key in ipairs({
-		"appsToWatch",
-		"refreshInterval",
-		"nothingIndicator",
-		"grayscaleIcon",
-		"fontSize",
-		"textOffset",
-		"infiniteThreshold",
-	}) do
-		if opts[key] ~= nil then self[key] = opts[key] end
+	for key, value in pairs(opts) do
+		self[key] = value
 	end
 	return self
 end
