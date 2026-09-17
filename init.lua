@@ -197,6 +197,7 @@ function obj:updateMenuWithBadges(badges)
 					iconCanvas[idx] = badgeTextItem(snoozed, menuItemDim - fontSize, itemWidth, fontSize)
 				end
 				table.insert(activeIcons, iconCanvas:imageFromCanvas())
+				iconCanvas:delete()
 			end
 		end
 	end
@@ -226,6 +227,7 @@ function obj:updateMenuWithBadges(badges)
 		}
 	end
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
+	canvas:delete()
 	self.menu:setTitle("")
 	self.menu:setClickCallback(snoozeCallback)
 	self.log.d("Updated menubar icon with", #activeIcons, "icons")

@@ -1,8 +1,10 @@
 local mock_hs
 local mock_ax
 local AppBadgeWatcher
+local created_canvases
 
 before_each(function()
+	created_canvases = {}
 	mock_hs = {
 		logger = {
 			new = function(_name, _level)
@@ -60,14 +62,20 @@ before_each(function()
 
 				canvas.alpha = function(self, _a) return self end
 				canvas.imageFromCanvas = function(_self) return { elements = elements, frame = frame } end
+				canvas.delete = function(self) self._deleted = true end
 
 				setmetatable(canvas, {
 					__len = function(_self) return #elements end,
-					__newindex = function(_self, key, value)
-						if type(key) == "number" then elements[key] = value end
+					__newindex = function(self, key, value)
+						if type(key) == "number" then
+							elements[key] = value
+						else
+							rawset(self, key, value)
+						end
 					end,
 				})
 
+				table.insert(created_canvases, canvas)
 				return canvas
 			end,
 		},
@@ -447,6 +455,14 @@ describe("AppBadgeWatcher", function()
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
 			assert.is_nil(AppBadgeWatcher.menu._icon)
+		end)
+
+		it("deletes every canvas it creates when rendering a badge (no leaked native views)", function()
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_true(#created_canvases > 0)
+			for _, canvas in ipairs(created_canvases) do
+				assert.is_true(canvas._deleted)
+			end
 		end)
 	end)
 
