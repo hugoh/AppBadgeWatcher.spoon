@@ -1,17 +1,25 @@
 local mock_hs
 local mock_ax
 local AppBadgeWatcher
-local created_canvases
+local created_items
+local warnings
+
+local function appItem(name)
+	for i = #created_items, 1, -1 do
+		if created_items[i]._autosaveName == "AppBadgeWatcher." .. name then return created_items[i] end
+	end
+end
 
 before_each(function()
-	created_canvases = {}
+	created_items = {}
+	warnings = {}
 	mock_hs = {
 		logger = {
 			new = function(_name, _level)
 				return {
 					i = function() end,
 					f = function() end,
-					w = function() end,
+					w = function(...) table.insert(warnings, table.concat({ ... }, " ")) end,
 					d = function() end,
 					v = function() end,
 				}
@@ -55,50 +63,27 @@ before_each(function()
 				}
 			end,
 		},
-		canvas = {
-			new = function(frame)
-				local canvas = {}
-				local elements = {}
-
-				canvas.alpha = function(self, _a) return self end
-				canvas.imageFromCanvas = function(_self) return { elements = elements, frame = frame } end
-				canvas.delete = function(self) self._deleted = true end
-
-				setmetatable(canvas, {
-					__len = function(_self) return #elements end,
-					__newindex = function(self, key, value)
-						if type(key) == "number" then
-							elements[key] = value
-						else
-							rawset(self, key, value)
-						end
-					end,
-				})
-
-				table.insert(created_canvases, canvas)
-				return canvas
-			end,
-		},
 		menubar = {
-			new = function()
-				return {
-					setTitle = function(self, title)
-						self._title = title
-						return self
-					end,
-					setIcon = function(self, icon, _flag)
-						self._icon = icon
-						return self
-					end,
-					setClickCallback = function(self, cb)
-						self._clickCb = cb
-						return self
-					end,
-					delete = function(self)
-						self._deleted = true
-						return self
-					end,
-				}
+			new = function(_inMenuBar, autosaveName)
+				local item = { _autosaveName = autosaveName }
+				function item:setTitle(title)
+					self._title = title
+					return self
+				end
+				function item:setIcon(icon, _flag)
+					self._icon = icon
+					return self
+				end
+				function item:setClickCallback(cb)
+					self._clickCb = cb
+					return self
+				end
+				function item:delete()
+					self._deleted = true
+					return self
+				end
+				table.insert(created_items, item)
+				return item
 			end,
 		},
 		timer = {
@@ -114,6 +99,10 @@ before_each(function()
 		applicationElement = function(app)
 			if app and app.name == "Dock" then
 				return {
+					setTimeout = function(self, seconds)
+						self._timeout = seconds
+						return self
+					end,
 					AXChildren = {
 						{
 							AXRole = "AXList",
@@ -121,6 +110,7 @@ before_each(function()
 								{ AXTitle = "Mail", AXBadgeValue = "5" },
 								{ AXTitle = "Slack", AXBadgeValue = "3" },
 								{ AXTitle = "Messages", AXBadgeValue = "12" },
+								{ AXTitle = "Notes", AXBadgeValue = "•" },
 								{ AXTitle = "Finder" },
 							},
 						},
@@ -230,11 +220,12 @@ describe("AppBadgeWatcher", function()
 			assert.is_number(badges["Mail"])
 		end)
 
-		it("returns empty table and does not throw when AX traversal errors", function()
+		it("returns nil and does not throw when AX traversal errors", function()
 			local originalApplicationElement = mock_ax.applicationElement
 			mock_ax.applicationElement = function(app)
 				if app and app.name == "Dock" then
 					return {
+						setTimeout = function(self) return self end,
 						AXChildren = setmetatable({}, {
 							__index = function() error("AX timeout") end,
 						}),
@@ -247,10 +238,30 @@ describe("AppBadgeWatcher", function()
 
 			local badges
 			assert.has_no.errors(function() badges = AppBadgeWatcher:getDockBadges() end)
-			assert.is.table(badges)
-			assert.is_nil(next(badges))
+			assert.is_nil(badges)
 
 			mock_ax.applicationElement = originalApplicationElement
+		end)
+	end)
+
+	describe("getDockBadges robustness", function()
+		it("bounds AX calls with a timeout so a hung Dock cannot stall Hammerspoon", function()
+			local dockAX = mock_ax.applicationElement({ name = "Dock" })
+			mock_ax.applicationElement = function() return dockAX end
+			AppBadgeWatcher:getDockBadges()
+			assert.are.equal(1, dockAX._timeout)
+		end)
+
+		it("does not warn about non-numeric badges on every poll", function()
+			AppBadgeWatcher:getDockBadges()
+			assert.are.equal(0, #warnings)
+		end)
+	end)
+
+	describe("getDockBadges when the Dock is unavailable", function()
+		it("returns nil so callers can tell failure from no badges", function()
+			mock_hs.application.find = function() return nil end
+			assert.is_nil(AppBadgeWatcher:getDockBadges())
 		end)
 	end)
 
@@ -258,6 +269,11 @@ describe("AppBadgeWatcher", function()
 		it("creates menu on start", function()
 			AppBadgeWatcher:start()
 			assert.is_not_nil(AppBadgeWatcher.menu)
+		end)
+
+		it("gives the nothing indicator a stable autosave name", function()
+			AppBadgeWatcher:start()
+			assert.are.equal("AppBadgeWatcher", AppBadgeWatcher.menu._autosaveName)
 		end)
 
 		it("creates timer on start", function()
@@ -272,14 +288,36 @@ describe("AppBadgeWatcher", function()
 
 		it("stops timer on stop", function()
 			AppBadgeWatcher:start()
+			local timer = AppBadgeWatcher.timer
 			AppBadgeWatcher:stop()
-			assert.is_true(AppBadgeWatcher.timer._stopped)
+			assert.is_true(timer._stopped)
+			assert.is_nil(AppBadgeWatcher.timer)
 		end)
 
 		it("deletes menu on stop", function()
 			AppBadgeWatcher:start()
+			local menu = AppBadgeWatcher.menu
 			AppBadgeWatcher:stop()
-			assert.is_true(AppBadgeWatcher.menu._deleted)
+			assert.is_true(menu._deleted)
+			assert.is_nil(AppBadgeWatcher.menu)
+		end)
+
+		it("start twice replaces the first timer and menu instead of leaking them", function()
+			AppBadgeWatcher:start()
+			local timer, menu = AppBadgeWatcher.timer, AppBadgeWatcher.menu
+			AppBadgeWatcher:start()
+			assert.is_true(timer._stopped)
+			assert.is_true(menu._deleted)
+			assert.is_not_nil(AppBadgeWatcher.menu)
+		end)
+
+		it("updateMenu after stop is a no-op", function()
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:start()
+			AppBadgeWatcher:stop()
+			local count = #created_items
+			assert.has_no.errors(function() AppBadgeWatcher:updateMenu(true) end)
+			assert.are.equal(count, #created_items)
 		end)
 
 		it("clears lastBadges, snoozedBadges and iconCache on stop", function()
@@ -356,6 +394,28 @@ describe("AppBadgeWatcher", function()
 			AppBadgeWatcher.getDockBadges = originalGetDockBadges
 		end)
 
+		it("keeps snoozes and items when the Dock read fails", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Mail"] = 2
+			local mail = appItem("Mail")
+			AppBadgeWatcher.getDockBadges = function(_self) return nil end
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal(2, AppBadgeWatcher.snoozedBadges["Mail"])
+			assert.is_nil(mail._deleted)
+			assert.is_nil(AppBadgeWatcher.menu)
+		end)
+
+		it("forgets the snooze of an app whose badge cleared while others remain", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Mail"] = 5
+			AppBadgeWatcher.getDockBadges = function(_self) return { Slack = 3 } end
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_nil(AppBadgeWatcher.snoozedBadges["Mail"])
+			AppBadgeWatcher.getDockBadges = function(_self) return { Mail = 6, Slack = 3 } end
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal("⁶", appItem("Mail")._title)
+		end)
+
 		it("shows nothingIndicator when no badges", function()
 			local originalGetDockBadges = AppBadgeWatcher.getDockBadges
 			AppBadgeWatcher.getDockBadges = function(_self) return {} end
@@ -386,30 +446,30 @@ describe("AppBadgeWatcher", function()
 			assert.are.equal(0, AppBadgeWatcher.snoozedBadges["Mail"])
 		end)
 
-		it("still shows icon when all badges are snoozed after click", function()
+		it("still shows icon with subscript count when all badges are snoozed after click", function()
 			AppBadgeWatcher:updateMenu(true)
-			AppBadgeWatcher.menu._clickCb()
-			assert.is_not_nil(AppBadgeWatcher.menu._icon)
-			assert.are.equal("", AppBadgeWatcher.menu._title)
+			appItem("Mail")._clickCb()
+			assert.is_not_nil(appItem("Mail")._icon)
+			assert.are.equal("₅", appItem("Mail")._title)
 		end)
 
 		it("keeps click callback after all badges are snoozed", function()
 			AppBadgeWatcher:updateMenu(true)
-			AppBadgeWatcher.menu._clickCb()
-			assert.is_function(AppBadgeWatcher.menu._clickCb)
+			appItem("Mail")._clickCb()
+			assert.is_function(appItem("Mail")._clickCb)
 		end)
 
 		it("second click after snooze is a no-op resnooze", function()
 			AppBadgeWatcher:updateMenu(true)
-			AppBadgeWatcher.menu._clickCb()
-			AppBadgeWatcher.menu._clickCb()
-			assert.is_not_nil(AppBadgeWatcher.menu._icon)
-			assert.is_function(AppBadgeWatcher.menu._clickCb)
+			appItem("Mail")._clickCb()
+			appItem("Mail")._clickCb()
+			assert.is_not_nil(appItem("Mail")._icon)
+			assert.is_function(appItem("Mail")._clickCb)
 		end)
 
 		it("snoozedBadges is a copy of lastBadges, not an alias", function()
 			AppBadgeWatcher:updateMenu(true)
-			AppBadgeWatcher.menu._clickCb()
+			appItem("Mail")._clickCb()
 			assert.are_not.equal(AppBadgeWatcher.lastBadges, AppBadgeWatcher.snoozedBadges)
 			AppBadgeWatcher.lastBadges["Mail"] = 999
 			assert.are_not.equal(999, AppBadgeWatcher.snoozedBadges["Mail"])
@@ -429,40 +489,135 @@ describe("AppBadgeWatcher", function()
 			assert.are.equal(12, AppBadgeWatcher.lastBadges["Messages"])
 		end)
 
-		local function badgeText()
-			for _, outer in ipairs(AppBadgeWatcher.menu._icon.elements) do
-				for _, inner in ipairs(outer.image.elements) do
-					if inner.type == "text" then return inner.text end
-				end
-			end
-		end
-
 		it("has default infiniteThreshold of 9", function() assert.are.equal(9, AppBadgeWatcher.infiniteThreshold) end)
 
-		it("shows infinity symbol for counts over infiniteThreshold", function()
+		it("shows a superscript plus for counts over infiniteThreshold", function()
 			AppBadgeWatcher:updateMenu(true)
-			assert.are.equal("∞", badgeText())
+			assert.are.equal("⁺", appItem("Messages")._title)
 		end)
 
 		it("shows the number when count is within a raised infiniteThreshold", function()
 			AppBadgeWatcher.infiniteThreshold = 20
 			AppBadgeWatcher:updateMenu(true)
-			assert.are.equal(12, badgeText())
+			assert.are.equal("¹²", appItem("Messages")._title)
 		end)
 
-		it("falls back to nothingIndicator instead of zero-width canvas when no icons resolve", function()
+		it("falls back to nothingIndicator when no icons resolve", function()
 			AppBadgeWatcher.getIconForApp = function(_appName, _iconDim) return nil end
 			AppBadgeWatcher:updateMenu(true)
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
-			assert.is_nil(AppBadgeWatcher.menu._icon)
+			assert.is_nil(next(AppBadgeWatcher.appItems))
+		end)
+	end)
+
+	describe("per-app menubar items", function()
+		before_each(function()
+			AppBadgeWatcher.appsToWatch = { "Mail", "Slack", "Messages" }
+			AppBadgeWatcher:start()
 		end)
 
-		it("deletes every canvas it creates when rendering a badge (no leaked native views)", function()
+		after_each(function() AppBadgeWatcher:stop() end)
+
+		it("creates one live item per badged app with a stable autosave name and icon", function()
 			AppBadgeWatcher:updateMenu(true)
-			assert.is_true(#created_canvases > 0)
-			for _, canvas in ipairs(created_canvases) do
-				assert.is_true(canvas._deleted)
+			for _, name in ipairs({ "Mail", "Slack", "Messages" }) do
+				assert.is_nil(appItem(name)._deleted)
+				assert.is_not_nil(appItem(name)._icon)
+				assert.is_function(appItem(name)._clickCb)
 			end
+		end)
+
+		it("shows superscript counts, and a plus over the threshold", function()
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal("⁵", appItem("Mail")._title)
+			assert.are.equal("³", appItem("Slack")._title)
+			assert.are.equal("⁺", appItem("Messages")._title)
+		end)
+
+		it("shows the new count as superscript and the snoozed count as subscript", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Mail"] = 2
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal("³₂", appItem("Mail")._title)
+		end)
+
+		it("uses a subscript plus for a snoozed count over the threshold", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.snoozedBadges["Messages"] = 11
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal("¹₊", appItem("Messages")._title)
+		end)
+
+		it("removes the nothing indicator while badge items are shown", function()
+			local indicator = AppBadgeWatcher.menu
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_nil(AppBadgeWatcher.menu)
+			if indicator then assert.is_true(indicator._deleted) end
+		end)
+
+		it("deletes app items and recreates the indicator when badges clear", function()
+			AppBadgeWatcher:updateMenu(true)
+			local mail = appItem("Mail")
+			AppBadgeWatcher.getDockBadges = function(_self) return {} end
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_true(mail._deleted)
+			assert.are.equal("AppBadgeWatcher", AppBadgeWatcher.menu._autosaveName)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
+		end)
+
+		it("deletes only the item whose badge went away", function()
+			AppBadgeWatcher:updateMenu(true)
+			local slack = appItem("Slack")
+			AppBadgeWatcher.getDockBadges = function(_self) return { Mail = 5 } end
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_true(slack._deleted)
+			assert.is_nil(appItem("Mail")._deleted)
+		end)
+
+		it("recreates a cleared app item under the same autosave name", function()
+			AppBadgeWatcher:updateMenu(true)
+			local first = appItem("Mail")
+			AppBadgeWatcher.getDockBadges = function(_self) return {} end
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher.getDockBadges = function(_self) return { Mail = 5 } end
+			AppBadgeWatcher:updateMenu(true)
+			local second = appItem("Mail")
+			assert.are_not.equal(first, second)
+			assert.are.equal("AppBadgeWatcher.Mail", second._autosaveName)
+			assert.is_nil(second._deleted)
+		end)
+
+		it("reuses a shown item across updates", function()
+			AppBadgeWatcher:updateMenu(true)
+			local count = #created_items
+			AppBadgeWatcher:updateMenu(true)
+			assert.are.equal(count, #created_items)
+		end)
+
+		it("deletes app items on stop", function()
+			AppBadgeWatcher:updateMenu(true)
+			AppBadgeWatcher:stop()
+			assert.is_true(appItem("Mail")._deleted)
+		end)
+	end)
+
+	describe("when the menubar is full", function()
+		it("retries creating an item that failed, without waiting for a badge change", function()
+			local full = true
+			local newItem = mock_hs.menubar.new
+			mock_hs.menubar.new = function(inMenuBar, name)
+				if full and name == "AppBadgeWatcher.Mail" then return nil end
+				return newItem(inMenuBar, name)
+			end
+			AppBadgeWatcher.appsToWatch = { "Mail", "Slack" }
+			AppBadgeWatcher:start()
+			assert.is_nil(appItem("Mail"))
+			assert.is_not_nil(appItem("Slack"))
+
+			full = false
+			AppBadgeWatcher:updateMenu()
+			assert.is_not_nil(appItem("Mail"))
+			AppBadgeWatcher:stop()
 		end)
 	end)
 
@@ -473,6 +628,27 @@ describe("AppBadgeWatcher", function()
 			assert.are.equal(99, AppBadgeWatcher.infiniteThreshold)
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.nothingIndicator)
 			assert.are.equal(AppBadgeWatcher, result)
+		end)
+
+		it("drops items of apps removed from appsToWatch on the next update", function()
+			AppBadgeWatcher.appsToWatch = { "Mail", "Slack" }
+			AppBadgeWatcher:start()
+			local slack = appItem("Slack")
+			AppBadgeWatcher:configure({ appsToWatch = { "Mail" } })
+			AppBadgeWatcher:updateMenu()
+			assert.is_true(slack._deleted)
+			assert.is_nil(AppBadgeWatcher.appItems["Slack"])
+			AppBadgeWatcher:stop()
+		end)
+
+		it("applies display settings on the next update even when badges are unchanged", function()
+			AppBadgeWatcher.appsToWatch = { "Messages" }
+			AppBadgeWatcher:start()
+			assert.are.equal("⁺", appItem("Messages")._title)
+			AppBadgeWatcher:configure({ infiniteThreshold = 20 })
+			AppBadgeWatcher:updateMenu()
+			assert.are.equal("¹²", appItem("Messages")._title)
+			AppBadgeWatcher:stop()
 		end)
 
 		it("chains with start", function()
