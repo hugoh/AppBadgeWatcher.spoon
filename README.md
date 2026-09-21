@@ -11,7 +11,8 @@ A Hammerspoon Spoon that monitors app dock badges and displays notification coun
 ## Features
 
 - Monitors dock badge values of specified applications
-- Displays clean menu bar indicators with app icons
+- Displays one menu bar item per app with badges: the app icon plus a superscript count (subscript for snoozed). The count is drawn as menu bar text, so it always matches the menu bar's light/dark color
+- Drag items to reorder them; positions are remembered across restarts
 - Configurable refresh interval
 - "Snooze" badge counts by clicking menu bar item
 
@@ -67,9 +68,7 @@ spoon.AppBadgeWatcher.appsToWatch = {
 spoon.AppBadgeWatcher.refreshInterval = 15  -- Update every 15 seconds
 spoon.AppBadgeWatcher.nothingIndicator = "・"  -- Shown when no notifications
 spoon.AppBadgeWatcher.grayscaleIcon = false  -- Convert app icons to grayscale?
-spoon.AppBadgeWatcher.fontSize = 6  -- Badge font size
-spoon.AppBadgeWatcher.infiniteThreshold = 9  -- Counts above this show as ∞
-spoon.AppBadgeWatcher.textOffset = { x = 2, y = 0 } -- Text offset on icon
+spoon.AppBadgeWatcher.infiniteThreshold = 9  -- Counts above this show as e.g. ⁹⁺
 
 -- Start the watcher
 spoon.AppBadgeWatcher:start()
@@ -92,7 +91,7 @@ The Spoon periodically checks the Dock's accessibility elements for badge values
 
 - **Smart Polling**: Checks at configured intervals (default 15s)
 - **Icon Cache**: App icons are cached for better performance
-- **Compact Display**: Shows ∞ symbol for counts over the configurable `infiniteThreshold` (default 9)
+- **Compact Display**: Shows a ⁺ sign for counts over the configurable `infiniteThreshold` (default 9)
 - **Low Profile**: Displays subtle dot when no notifications exist
 
 ## Security & Permissions

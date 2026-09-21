@@ -32,27 +32,22 @@ obj.nothingIndicator = "・"
 --- Variable
 --- Convert app icons to grayscale in the menu bar (default: false).
 obj.grayscaleIcon = false
---- AppBadgeWatcher.fontSize
---- Variable
---- Font size for badge count labels (default: 6).
-obj.fontSize = 6
---- AppBadgeWatcher.textOffset
---- Variable
---- Pixel offset {x, y} applied to badge text on the icon (default: { x = 2, y = 0 }).
-obj.textOffset = { x = 2, y = 0 }
 --- AppBadgeWatcher.infiniteThreshold
 --- Variable
---- Badge counts above this value are shown as "∞" instead of the number (default: 9).
+--- Badge counts above this value are shown as a plus sign ("⁺") instead of the number (default: 9).
 obj.infiniteThreshold = 9
 
 -- Internal
 obj.timer = nil
 obj.menu = nil
+obj.appItems = {}
 obj.iconCache = {}
 obj.log = hs.logger.new("AppBadgeWatcher", "info")
 obj.snoozedBadges = {}
 
 local ax = require("hs.axuielement")
+
+local AX_TIMEOUT_SECONDS = 1
 
 local function getAppPath(appName)
 	local app = hs.application.get(appName)
@@ -80,16 +75,17 @@ function obj:getDockBadges()
 	local dockApp = hs.application.find("Dock")
 	if not dockApp then
 		self.log.w("Dock not found")
-		return results
+		return nil
 	end
 
 	local dockAX = ax.applicationElement(dockApp)
 	if not dockAX then
 		self.log.w("Failed to get AXUIElement for Dock")
-		return results
+		return nil
 	end
 
 	local ok, err = pcall(function()
+		dockAX:setTimeout(AX_TIMEOUT_SECONDS)
 		local topChildren = dockAX.AXChildren or {}
 		self.log.d("Found", #topChildren, "top-level Dock children")
 
@@ -108,7 +104,7 @@ function obj:getDockBadges()
 								self.log.d(string.format("Badge for '%s': %s", title, badge))
 								results[title] = n
 							else
-								self.log.w(string.format("Non-numeric badge for '%s': %s", title, badge))
+								self.log.d(string.format("Non-numeric badge for '%s': %s", title, badge))
 							end
 						else
 							self.log.v(string.format("No badge for '%s'", title))
@@ -123,7 +119,7 @@ function obj:getDockBadges()
 
 	if not ok then
 		self.log.w("AX traversal failed (Dock may be relaunching or unresponsive):", tostring(err))
-		return {}
+		return nil
 	end
 
 	return results
@@ -140,73 +136,58 @@ local function tablesEqual(t1, t2)
 	return true
 end
 
-local function badgeTextItem(value, yBase, itemWidth, fontSize)
-	if value > obj.infiniteThreshold then value = "∞" end
-	return {
-		type = "text",
-		text = value,
-		textSize = fontSize,
-		textColor = { white = 1 },
-		frame = {
-			x = itemWidth - fontSize + obj.textOffset.x,
-			y = yBase + obj.textOffset.y,
-			h = fontSize + 2,
-			w = fontSize + 2,
-		},
-	}
+local SUPERSCRIPT = { digits = { "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹" }, plus = "⁺" }
+local SUBSCRIPT = { digits = { "₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉" }, plus = "₊" }
+
+local function scriptDigits(value, glyphs)
+	if value > obj.infiniteThreshold then return glyphs.plus end
+	return (tostring(value):gsub("%d", function(d) return glyphs.digits[tonumber(d) + 1] end))
+end
+
+local function badgeTitle(newBadge, snoozed)
+	return (newBadge > 0 and scriptDigits(newBadge, SUPERSCRIPT) or "")
+		.. (snoozed > 0 and scriptDigits(snoozed, SUBSCRIPT) or "")
+end
+
+local function deleteItem(item)
+	if item then item:delete() end
+end
+
+function obj:appItem(appName)
+	if not self.appItems[appName] then self.appItems[appName] = hs.menubar.new(true, "AppBadgeWatcher." .. appName) end
+	return self.appItems[appName]
+end
+
+function obj:removeAppItem(appName)
+	deleteItem(self.appItems[appName])
+	self.appItems[appName] = nil
+end
+
+function obj:showIndicator()
+	self.menu = self.menu or hs.menubar.new(true, "AppBadgeWatcher")
+	if not self.menu then
+		self.log.d("Failed to create menu bar item (menu bar may be full)")
+		return
+	end
+	self.menu:setTitle(self.nothingIndicator)
+end
+
+function obj:hideIndicator()
+	deleteItem(self.menu)
+	self.menu = nil
 end
 
 function obj:updateMenuNoNotification()
-	if not self.menu then return end
-	self.menu:setTitle(self.nothingIndicator)
-	self.menu:setIcon(nil)
+	for appName in pairs(self.appItems) do
+		self:removeAppItem(appName)
+	end
+	self:showIndicator()
 	self.log.d("No active badges, showing indicator:", self.nothingIndicator)
+	return self.menu ~= nil
 end
 
 function obj:updateMenuWithBadges(badges)
-	if not self.menu then return end
-	local menuItemDim = 22
 	local iconDim = 19
-	local itemWidth = 25
-	local fontSize = obj.fontSize
-
-	local activeIcons = {}
-	for _, appName in ipairs(self.appsToWatch) do
-		if badges[appName] then
-			if not self.snoozedBadges[appName] or self.snoozedBadges[appName] > badges[appName] then
-				self.snoozedBadges[appName] = 0
-			end
-			local newBadge = badges[appName] - self.snoozedBadges[appName]
-			local snoozed = self.snoozedBadges[appName]
-			local appIcon = obj.getIconForApp(appName, iconDim)
-			if (newBadge > 0 or snoozed > 0) and appIcon then
-				local iconCanvas = hs.canvas.new({ x = 0, y = 0, h = menuItemDim, w = itemWidth }):alpha(0)
-				local idx = 1
-				iconCanvas[idx] = {
-					type = "image",
-					image = appIcon,
-					imageScaling = "none",
-					frame = { x = 0, y = 1, h = menuItemDim, w = menuItemDim },
-				}
-				if newBadge > 0 then
-					idx = idx + 1
-					iconCanvas[idx] = badgeTextItem(newBadge, 1, itemWidth, fontSize)
-				end
-				if snoozed > 0 then
-					idx = idx + 1
-					iconCanvas[idx] = badgeTextItem(snoozed, menuItemDim - fontSize, itemWidth, fontSize)
-				end
-				table.insert(activeIcons, iconCanvas:imageFromCanvas())
-				iconCanvas:delete()
-			end
-		end
-	end
-
-	if #activeIcons == 0 then
-		self.log.d("No icons to display despite active badges, falling back to nothingIndicator")
-		self:updateMenuNoNotification()
-		return
-	end
 
 	local snoozeCallback = function()
 		local copy = {}
@@ -217,24 +198,47 @@ function obj:updateMenuWithBadges(badges)
 		self:updateMenu(true)
 	end
 
-	local totalWidth = itemWidth * #activeIcons
-	local canvas = hs.canvas.new({ x = 0, y = 0, h = itemWidth, w = totalWidth }):alpha(0)
-	for i, icon in ipairs(activeIcons) do
-		canvas[#canvas + 1] = {
-			type = "image",
-			image = icon,
-			frame = { x = (i - 1) * itemWidth, y = 0, h = menuItemDim, w = itemWidth },
-		}
+	local complete = true
+	local shown = {}
+	for _, appName in ipairs(self.appsToWatch) do
+		if badges[appName] then
+			if not self.snoozedBadges[appName] or self.snoozedBadges[appName] > badges[appName] then
+				self.snoozedBadges[appName] = 0
+			end
+			local newBadge = badges[appName] - self.snoozedBadges[appName]
+			local snoozed = self.snoozedBadges[appName]
+			local appIcon = obj.getIconForApp(appName, iconDim)
+			local wanted = (newBadge > 0 or snoozed > 0) and appIcon
+			local item = wanted and self:appItem(appName)
+			if item then
+				item:setIcon(appIcon, false)
+				item:setTitle(badgeTitle(newBadge, snoozed))
+				item:setClickCallback(snoozeCallback)
+				shown[appName] = true
+			elseif wanted then
+				complete = false
+			end
+		end
 	end
-	self.menu:setIcon(canvas:imageFromCanvas(), false)
-	canvas:delete()
-	self.menu:setTitle("")
-	self.menu:setClickCallback(snoozeCallback)
-	self.log.d("Updated menubar icon with", #activeIcons, "icons")
+
+	if next(shown) == nil then
+		self.log.d("No icons to display despite active badges, falling back to nothingIndicator")
+		local indicatorShown = self:updateMenuNoNotification()
+		return complete and indicatorShown
+	end
+
+	for appName in pairs(self.appItems) do
+		if not shown[appName] then self:removeAppItem(appName) end
+	end
+	self:hideIndicator()
+	self.log.d("Updated menubar with badge items")
+	return complete
 end
 
 function obj:updateMenu(forceUpdate)
+	if not self.running then return end
 	local dockBadges = self:getDockBadges()
+	if not dockBadges then return end
 
 	local hasBadges = false
 	local filteredBadges = {}
@@ -246,19 +250,23 @@ function obj:updateMenu(forceUpdate)
 		end
 	end
 
+	for appName in pairs(self.snoozedBadges) do
+		if not filteredBadges[appName] then self.snoozedBadges[appName] = nil end
+	end
+
 	if not forceUpdate and tablesEqual(filteredBadges, self.lastBadges) then
 		self.log.d("No badge changes, skipping update")
 		return
 	end
 	self.lastBadges = filteredBadges
 
-	if not hasBadges then
-		self:updateMenuNoNotification()
-		self.snoozedBadges = {}
-		return
+	local rendered
+	if hasBadges then
+		rendered = self:updateMenuWithBadges(filteredBadges)
+	else
+		rendered = self:updateMenuNoNotification()
 	end
-
-	self:updateMenuWithBadges(filteredBadges)
+	if not rendered then self.lastBadges = nil end
 end
 
 --- AppBadgeWatcher:configure(opts)
@@ -267,11 +275,12 @@ end
 ---
 --- Parameters:
 ---  * opts - a table with any of `appsToWatch`, `refreshInterval`, `nothingIndicator`,
----    `grayscaleIcon`, `fontSize`, `textOffset`, `infiniteThreshold`
+---    `grayscaleIcon`, `infiniteThreshold`
 function obj:configure(opts)
 	for key, value in pairs(opts) do
 		self[key] = value
 	end
+	self.lastBadges = nil
 	return self
 end
 
@@ -287,12 +296,14 @@ end
 --- Method
 --- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
 function obj:start()
-	self.menu = hs.menubar.new()
+	if self.running then self:stop() end
+	self.menu = hs.menubar.new(true, "AppBadgeWatcher")
 	if not self.menu then
 		self.log.w("Failed to create menu bar item (menu bar may be full); AppBadgeWatcher not started")
 		return self
 	end
-	self:updateMenuNoNotification()
+	self.running = true
+	self:showIndicator()
 	self.log.i("AppBadgeWatcher started")
 	self:updateMenu()
 	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
@@ -304,8 +315,13 @@ end
 --- Stop the badge watcher and remove the menu bar item.
 function obj:stop()
 	self.log.f("Stopping %s v%s", self.name, self.version)
+	self.running = false
 	if self.timer then self.timer:stop() end
-	if self.menu then self.menu:delete() end
+	self.timer = nil
+	self:hideIndicator()
+	for appName in pairs(self.appItems) do
+		self:removeAppItem(appName)
+	end
 	self.lastBadges = nil
 	self.snoozedBadges = {}
 	self.iconCache = {}
