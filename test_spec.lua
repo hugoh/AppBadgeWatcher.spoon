@@ -3,6 +3,23 @@ local mock_ax
 local AppBadgeWatcher
 local created_items
 local warnings
+local deferred
+
+local function axElement(t)
+	function t:setTimeout(seconds)
+		self._timeout = seconds
+		return self
+	end
+	return t
+end
+
+local function runDeferred()
+	local pending = deferred
+	deferred = {}
+	for _, fn in ipairs(pending) do
+		fn()
+	end
+end
 
 local function appItem(name)
 	for i = #created_items, 1, -1 do
@@ -13,6 +30,7 @@ end
 before_each(function()
 	created_items = {}
 	warnings = {}
+	deferred = {}
 	mock_hs = {
 		logger = {
 			new = function(_name, _level)
@@ -92,30 +110,27 @@ before_each(function()
 					stop = function(self) self._stopped = true end,
 				}
 			end,
+			doAfter = function(_delay, fn) table.insert(deferred, fn) end,
 		},
 	}
 
 	mock_ax = {
 		applicationElement = function(app)
 			if app and app.name == "Dock" then
-				return {
-					setTimeout = function(self, seconds)
-						self._timeout = seconds
-						return self
-					end,
+				return axElement({
 					AXChildren = {
-						{
+						axElement({
 							AXRole = "AXList",
 							AXChildren = {
-								{ AXTitle = "Mail", AXBadgeValue = "5" },
-								{ AXTitle = "Slack", AXBadgeValue = "3" },
-								{ AXTitle = "Messages", AXBadgeValue = "12" },
-								{ AXTitle = "Notes", AXBadgeValue = "•" },
-								{ AXTitle = "Finder" },
+								axElement({ AXTitle = "Mail", AXBadgeValue = "5" }),
+								axElement({ AXTitle = "Slack", AXBadgeValue = "3" }),
+								axElement({ AXTitle = "Messages", AXBadgeValue = "12" }),
+								axElement({ AXTitle = "Notes", AXBadgeValue = "•" }),
+								axElement({ AXTitle = "Finder" }),
 							},
-						},
+						}),
 					},
-				}
+				})
 			end
 			return nil
 		end,
@@ -250,6 +265,17 @@ describe("AppBadgeWatcher", function()
 			mock_ax.applicationElement = function() return dockAX end
 			AppBadgeWatcher:getDockBadges()
 			assert.are.equal(1, dockAX._timeout)
+		end)
+
+		it("bounds AX calls on every Dock element, since child elements do not inherit the timeout", function()
+			local dockAX = mock_ax.applicationElement({ name = "Dock" })
+			mock_ax.applicationElement = function() return dockAX end
+			AppBadgeWatcher:getDockBadges()
+			local list = dockAX.AXChildren[1]
+			assert.are.equal(1, list._timeout)
+			for _, item in ipairs(list.AXChildren) do
+				assert.are.equal(1, item._timeout)
+			end
 		end)
 
 		it("does not warn about non-numeric badges on every poll", function()
@@ -449,6 +475,7 @@ describe("AppBadgeWatcher", function()
 		it("still shows icon with subscript count when all badges are snoozed after click", function()
 			AppBadgeWatcher:updateMenu(true)
 			appItem("Mail")._clickCb()
+			runDeferred()
 			assert.is_not_nil(appItem("Mail")._icon)
 			assert.are.equal("₅", appItem("Mail")._title)
 		end)
@@ -456,20 +483,34 @@ describe("AppBadgeWatcher", function()
 		it("keeps click callback after all badges are snoozed", function()
 			AppBadgeWatcher:updateMenu(true)
 			appItem("Mail")._clickCb()
+			runDeferred()
 			assert.is_function(appItem("Mail")._clickCb)
 		end)
 
 		it("second click after snooze is a no-op resnooze", function()
 			AppBadgeWatcher:updateMenu(true)
 			appItem("Mail")._clickCb()
+			runDeferred()
 			appItem("Mail")._clickCb()
+			runDeferred()
 			assert.is_not_nil(appItem("Mail")._icon)
 			assert.is_function(appItem("Mail")._clickCb)
+		end)
+
+		it("defers the snooze refresh so an item is never deleted inside its own click callback", function()
+			AppBadgeWatcher:updateMenu(true)
+			local item = appItem("Mail")
+			AppBadgeWatcher.getDockBadges = function() return {} end
+			item._clickCb()
+			assert.is_nil(item._deleted)
+			runDeferred()
+			assert.is_true(item._deleted)
 		end)
 
 		it("snoozedBadges is a copy of lastBadges, not an alias", function()
 			AppBadgeWatcher:updateMenu(true)
 			appItem("Mail")._clickCb()
+			runDeferred()
 			assert.are_not.equal(AppBadgeWatcher.lastBadges, AppBadgeWatcher.snoozedBadges)
 			AppBadgeWatcher.lastBadges["Mail"] = 999
 			assert.are_not.equal(999, AppBadgeWatcher.snoozedBadges["Mail"])
