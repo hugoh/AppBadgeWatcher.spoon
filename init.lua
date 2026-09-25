@@ -90,11 +90,13 @@ function obj:getDockBadges()
 		self.log.d("Found", #topChildren, "top-level Dock children")
 
 		for _, container in ipairs(topChildren) do
+			container:setTimeout(AX_TIMEOUT_SECONDS)
 			if container.AXRole == "AXList" then
 				local dockItems = container.AXChildren or {}
 				self.log.d("Found", #dockItems, "Dock items in AXList")
 
 				for _, item in ipairs(dockItems) do
+					item:setTimeout(AX_TIMEOUT_SECONDS)
 					local title = item.AXTitle
 					local badge = item.AXBadgeValue or item.AXStatusLabel
 					if title then
@@ -195,7 +197,7 @@ function obj:updateMenuWithBadges(badges)
 			copy[k] = v
 		end
 		self.snoozedBadges = copy
-		self:updateMenu(true)
+		hs.timer.doAfter(0, function() self:updateMenu(true) end)
 	end
 
 	local complete = true
