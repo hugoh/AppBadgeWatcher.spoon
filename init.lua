@@ -72,6 +72,10 @@ end
 
 function obj:getDockBadges()
 	local results = {}
+	local watched = {}
+	for _, appName in ipairs(self.appsToWatch) do
+		watched[appName] = true
+	end
 	local dockApp = hs.application.find("Dock")
 	if not dockApp then
 		self.log.w("Dock not found")
@@ -98,8 +102,8 @@ function obj:getDockBadges()
 				for _, item in ipairs(dockItems) do
 					item:setTimeout(AX_TIMEOUT_SECONDS)
 					local title = item.AXTitle
-					local badge = item.AXBadgeValue or item.AXStatusLabel
-					if title then
+					if title and watched[title] then
+						local badge = item.AXBadgeValue or item.AXStatusLabel
 						if badge then
 							local n = tonumber(badge)
 							if n then
@@ -271,6 +275,12 @@ function obj:updateMenu(forceUpdate)
 	if not rendered then self.lastBadges = nil end
 end
 
+-- hs.timer stops a repeating timer whose callback throws, silently ending polling.
+function obj:_poll()
+	local ok, err = xpcall(self.updateMenu, debug.traceback, self)
+	if not ok then self.log.e("Badge refresh failed: " .. tostring(err)) end
+end
+
 --- AppBadgeWatcher:configure(opts)
 --- Method
 --- Set one or more of AppBadgeWatcher's spoon-level variables from a table. Call before `:start()`.
@@ -294,9 +304,51 @@ function obj:init()
 	return self
 end
 
+-- Dock badge changes emit no accessibility notification (the Dock only supports
+-- AXCreated, AXUIElementDestroyed and AXSelectedChildrenChanged), so the values
+-- themselves must be polled. Launch and quit events at least confine that polling to
+-- the time a watched app is actually running.
+function obj:_watchedRunning(excluding)
+	for _, appName in ipairs(self.appsToWatch) do
+		if appName ~= excluding and hs.application.get(appName) then return true end
+	end
+	return false
+end
+
+function obj:_startPoll()
+	if self.timer then return end
+	self:updateMenu()
+	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:_poll() end)
+end
+
+function obj:_stopPoll()
+	if self.timer then self.timer:stop() end
+	self.timer = nil
+end
+
+local function contains(list, value)
+	for _, v in ipairs(list) do
+		if v == value then return true end
+	end
+	return false
+end
+
+function obj:_onAppEvent(appName, event)
+	if not self.running or not contains(self.appsToWatch, appName) then return end
+	if event == hs.application.watcher.launched then
+		self:_startPoll()
+	elseif event == hs.application.watcher.terminated and not self:_watchedRunning(appName) then
+		self:_stopPoll()
+		self.lastBadges = nil
+		self.snoozedBadges = {}
+		self:updateMenuNoNotification()
+	end
+end
+
 --- AppBadgeWatcher:start()
 --- Method
---- Start the badge watcher: create the menu bar item and begin polling at the configured interval.
+--- Start the badge watcher: create the menu bar item and poll at the configured interval
+--- while any watched app is running.
 function obj:start()
 	if self.running then self:stop() end
 	self.menu = hs.menubar.new(true, "AppBadgeWatcher")
@@ -307,8 +359,9 @@ function obj:start()
 	self.running = true
 	self:showIndicator()
 	self.log.i("AppBadgeWatcher started")
-	self:updateMenu()
-	self.timer = hs.timer.doEvery(self.refreshInterval, function() self:updateMenu() end)
+	self.appWatcher = hs.application.watcher.new(function(appName, event) self:_onAppEvent(appName, event) end)
+	self.appWatcher:start()
+	if self:_watchedRunning() then self:_startPoll() end
 	return self
 end
 
@@ -318,8 +371,9 @@ end
 function obj:stop()
 	self.log.f("Stopping %s v%s", self.name, self.version)
 	self.running = false
-	if self.timer then self.timer:stop() end
-	self.timer = nil
+	if self.appWatcher then self.appWatcher:stop() end
+	self.appWatcher = nil
+	self:_stopPoll()
 	self:hideIndicator()
 	for appName in pairs(self.appItems) do
 		self:removeAppItem(appName)
