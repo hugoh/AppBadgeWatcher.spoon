@@ -3,6 +3,10 @@ local mock_ax
 local AppBadgeWatcher
 local created_items
 local warnings
+local errors
+local timerCallback
+local appWatcher
+local quitApps
 local deferred
 
 local function axElement(t)
@@ -30,6 +34,10 @@ end
 before_each(function()
 	created_items = {}
 	warnings = {}
+	errors = {}
+	timerCallback = nil
+	appWatcher = nil
+	quitApps = {}
 	deferred = {}
 	mock_hs = {
 		logger = {
@@ -38,13 +46,32 @@ before_each(function()
 					i = function() end,
 					f = function() end,
 					w = function(...) table.insert(warnings, table.concat({ ... }, " ")) end,
+					e = function(...) table.insert(errors, table.concat({ ... }, " ")) end,
 					d = function() end,
 					v = function() end,
 				}
 			end,
 		},
 		application = {
+			watcher = {
+				launched = "launched",
+				terminated = "terminated",
+				new = function(fn)
+					local w = { _fn = fn, _running = false }
+					function w:start()
+						self._running = true
+						return self
+					end
+					function w:stop()
+						self._running = false
+						return self
+					end
+					appWatcher = w
+					return w
+				end,
+			},
 			get = function(name)
+				if quitApps[name] then return nil end
 				if name == "Mail" then
 					return {
 						bundleID = function() return "com.apple.Mail" end,
@@ -105,7 +132,8 @@ before_each(function()
 			end,
 		},
 		timer = {
-			doEvery = function(_interval, _fn)
+			doEvery = function(_interval, fn)
+				timerCallback = fn
 				return {
 					stop = function(self) self._stopped = true end,
 				}
@@ -144,7 +172,7 @@ before_each(function()
 end)
 
 after_each(function()
-	if AppBadgeWatcher.timer then AppBadgeWatcher:stop() end
+	if AppBadgeWatcher.running then AppBadgeWatcher:stop() end
 	AppBadgeWatcher.iconCache = {}
 	AppBadgeWatcher.snoozedBadges = {}
 	AppBadgeWatcher.lastBadges = nil
@@ -214,6 +242,55 @@ describe("AppBadgeWatcher", function()
 	end)
 
 	describe("getDockBadges", function()
+		before_each(function() AppBadgeWatcher.appsToWatch = { "Mail", "Slack", "Messages", "Notes", "Finder" } end)
+
+		it("ignores Dock items that are not watched", function()
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			local badges = AppBadgeWatcher:getDockBadges()
+			assert.are.equal(5, badges["Mail"])
+			assert.is_nil(badges["Slack"])
+		end)
+
+		it("does not read badges of unwatched Dock items", function()
+			local reads = {}
+			local function countingItem(title, badge)
+				return axElement(setmetatable({ AXTitle = title }, {
+					__index = function(_t, key)
+						if key == "AXBadgeValue" or key == "AXStatusLabel" then
+							reads[title] = (reads[title] or 0) + 1
+							return badge
+						end
+					end,
+				}))
+			end
+			local dockAX = axElement({
+				AXChildren = {
+					axElement({
+						AXRole = "AXList",
+						AXChildren = { countingItem("Mail", "5"), countingItem("Slack", "3") },
+					}),
+				},
+			})
+			mock_ax.applicationElement = function() return dockAX end
+			AppBadgeWatcher.appsToWatch = { "Mail" }
+			AppBadgeWatcher:getDockBadges()
+			assert.is_truthy(reads.Mail)
+			assert.is_nil(reads.Slack)
+		end)
+
+		it("skips title-less Dock items without reading their badge", function()
+			local dockAX = axElement({
+				AXChildren = {
+					axElement({
+						AXRole = "AXList",
+						AXChildren = { axElement({ AXBadgeValue = "9" }) },
+					}),
+				},
+			})
+			mock_ax.applicationElement = function() return dockAX end
+			assert.are.same({}, AppBadgeWatcher:getDockBadges())
+		end)
+
 		it("returns a table", function()
 			local badges = AppBadgeWatcher:getDockBadges()
 			assert.is.table(badges)
@@ -292,12 +369,16 @@ describe("AppBadgeWatcher", function()
 	end)
 
 	describe("start and stop", function()
+		before_each(function() AppBadgeWatcher.appsToWatch = { "Mail" } end)
+
 		it("creates menu on start", function()
+			quitApps.Mail = true
 			AppBadgeWatcher:start()
 			assert.is_not_nil(AppBadgeWatcher.menu)
 		end)
 
 		it("gives the nothing indicator a stable autosave name", function()
+			quitApps.Mail = true
 			AppBadgeWatcher:start()
 			assert.are.equal("AppBadgeWatcher", AppBadgeWatcher.menu._autosaveName)
 		end)
@@ -307,7 +388,73 @@ describe("AppBadgeWatcher", function()
 			assert.is_not_nil(AppBadgeWatcher.timer)
 		end)
 
+		it("keeps polling after an error in the timer callback", function()
+			AppBadgeWatcher:start()
+			AppBadgeWatcher.updateMenu = function() error("boom") end
+			assert.has_no.errors(timerCallback)
+			assert.are.equal(1, #errors)
+			assert.is_truthy(errors[1]:find("boom", 1, true))
+		end)
+
+		it("does not poll while no watched app is running", function()
+			quitApps.Mail = true
+			AppBadgeWatcher:start()
+			assert.is_nil(AppBadgeWatcher.timer)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
+		end)
+
+		it("starts polling when a watched app launches", function()
+			quitApps.Mail = true
+			AppBadgeWatcher:start()
+			quitApps.Mail = nil
+			appWatcher._fn("Mail", "launched", {})
+			assert.is_not_nil(AppBadgeWatcher.timer)
+		end)
+
+		it("ignores apps that are not watched", function()
+			quitApps.Mail = true
+			AppBadgeWatcher:start()
+			appWatcher._fn("Notes", "launched", {})
+			assert.is_nil(AppBadgeWatcher.timer)
+		end)
+
+		it("does not start a second timer when another watched app launches", function()
+			AppBadgeWatcher.appsToWatch = { "Mail", "Slack" }
+			AppBadgeWatcher:start()
+			local timer = AppBadgeWatcher.timer
+			appWatcher._fn("Slack", "launched", {})
+			assert.are.equal(timer, AppBadgeWatcher.timer)
+		end)
+
+		it("stops polling and clears badges when the last watched app quits", function()
+			AppBadgeWatcher:start()
+			AppBadgeWatcher:updateMenu(true)
+			local timer = AppBadgeWatcher.timer
+			quitApps.Mail = true
+			appWatcher._fn("Mail", "terminated", {})
+			assert.is_true(timer._stopped)
+			assert.is_nil(AppBadgeWatcher.timer)
+			assert.is_true(appItem("Mail")._deleted)
+			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
+		end)
+
+		it("keeps polling when one of several watched apps quits", function()
+			AppBadgeWatcher.appsToWatch = { "Mail", "Slack" }
+			AppBadgeWatcher:start()
+			quitApps.Slack = true
+			appWatcher._fn("Slack", "terminated", {})
+			assert.is_not_nil(AppBadgeWatcher.timer)
+		end)
+
+		it("stops the application watcher on stop", function()
+			AppBadgeWatcher:start()
+			local watcher = appWatcher
+			AppBadgeWatcher:stop()
+			assert.is_false(watcher._running)
+		end)
+
 		it("shows nothingIndicator initially", function()
+			quitApps.Mail = true
 			AppBadgeWatcher:start()
 			assert.are.equal(nothingIndicator, AppBadgeWatcher.menu._title)
 		end)
@@ -321,6 +468,7 @@ describe("AppBadgeWatcher", function()
 		end)
 
 		it("deletes menu on stop", function()
+			quitApps.Mail = true
 			AppBadgeWatcher:start()
 			local menu = AppBadgeWatcher.menu
 			AppBadgeWatcher:stop()
@@ -330,11 +478,12 @@ describe("AppBadgeWatcher", function()
 
 		it("start twice replaces the first timer and menu instead of leaking them", function()
 			AppBadgeWatcher:start()
-			local timer, menu = AppBadgeWatcher.timer, AppBadgeWatcher.menu
+			local timer, watcher, item = AppBadgeWatcher.timer, appWatcher, appItem("Mail")
 			AppBadgeWatcher:start()
 			assert.is_true(timer._stopped)
-			assert.is_true(menu._deleted)
-			assert.is_not_nil(AppBadgeWatcher.menu)
+			assert.is_false(watcher._running)
+			assert.is_true(item._deleted)
+			assert.is_not_nil(appItem("Mail"))
 		end)
 
 		it("updateMenu after stop is a no-op", function()

@@ -65,7 +65,7 @@ spoon.AppBadgeWatcher.appsToWatch = {
     "Microsoft Teams",
 }
 -- Optional: default configuration showed below
-spoon.AppBadgeWatcher.refreshInterval = 15  -- Update every 15 seconds
+spoon.AppBadgeWatcher.refreshInterval = 15  -- Update every 15 seconds while a watched app runs
 spoon.AppBadgeWatcher.nothingIndicator = "・"  -- Shown when no notifications
 spoon.AppBadgeWatcher.grayscaleIcon = false  -- Convert app icons to grayscale?
 spoon.AppBadgeWatcher.infiniteThreshold = 9  -- Counts above this show as e.g. ⁹⁺
