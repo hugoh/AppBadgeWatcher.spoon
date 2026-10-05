@@ -68,7 +68,7 @@ spoon.AppBadgeWatcher.appsToWatch = {
 spoon.AppBadgeWatcher.refreshInterval = 15  -- Update every 15 seconds while a watched app runs
 spoon.AppBadgeWatcher.nothingIndicator = "・"  -- Shown when no notifications
 spoon.AppBadgeWatcher.grayscaleIcon = false  -- Convert app icons to grayscale?
-spoon.AppBadgeWatcher.infiniteThreshold = 9  -- Counts above this show as e.g. ⁹⁺
+spoon.AppBadgeWatcher.infiniteThreshold = 9  -- Counts above this show as ⁺ instead of the number
 
 -- Start the watcher
 spoon.AppBadgeWatcher:start()
