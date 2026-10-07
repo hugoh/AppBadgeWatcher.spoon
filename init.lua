@@ -36,6 +36,10 @@ obj.grayscaleIcon = false
 --- Variable
 --- Badge counts above this value are shown as a plus sign ("⁺") instead of the number (default: 9).
 obj.infiniteThreshold = 9
+--- AppBadgeWatcher.snoozeOnClick
+--- Variable
+--- Clicking an app's menu bar item snoozes its current badge count (default: true).
+obj.snoozeOnClick = true
 
 -- Internal
 obj.timer = nil
@@ -219,7 +223,7 @@ function obj:updateMenuWithBadges(badges)
 			if item then
 				item:setIcon(appIcon, false)
 				item:setTitle(badgeTitle(newBadge, snoozed))
-				item:setClickCallback(snoozeCallback)
+				item:setClickCallback(self.snoozeOnClick and snoozeCallback or nil)
 				shown[appName] = true
 			elseif wanted then
 				complete = false
@@ -287,7 +291,7 @@ end
 ---
 --- Parameters:
 ---  * opts - a table with any of `appsToWatch`, `refreshInterval`, `nothingIndicator`,
----    `grayscaleIcon`, `infiniteThreshold`
+---    `grayscaleIcon`, `infiniteThreshold`, `snoozeOnClick`
 function obj:configure(opts)
 	for key, value in pairs(opts) do
 		self[key] = value
