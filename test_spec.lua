@@ -608,6 +608,12 @@ describe("AppBadgeWatcher", function()
 
 		after_each(function() AppBadgeWatcher:stop() end)
 
+		it("sets no click callback when snoozeOnClick is false", function()
+			AppBadgeWatcher.snoozeOnClick = false
+			AppBadgeWatcher:updateMenu(true)
+			assert.is_nil(appItem("Mail")._clickCb)
+		end)
+
 		it("tracks snoozed badge values", function()
 			AppBadgeWatcher:updateMenu(true)
 			AppBadgeWatcher.snoozedBadges["Mail"] = 2
