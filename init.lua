@@ -42,8 +42,6 @@ obj.infiniteThreshold = 9
 obj.snoozeOnClick = true
 
 -- Internal
-obj.timer = nil
-obj.menu = nil
 obj.appItems = {}
 obj.iconCache = {}
 obj.log = hs.logger.new("AppBadgeWatcher", "info")
@@ -76,10 +74,6 @@ end
 
 function obj:getDockBadges()
 	local results = {}
-	local watched = {}
-	for _, appName in ipairs(self.appsToWatch) do
-		watched[appName] = true
-	end
 	local dockApp = hs.application.find("Dock")
 	if not dockApp then
 		self.log.w("Dock not found")
@@ -106,7 +100,7 @@ function obj:getDockBadges()
 				for _, item in ipairs(dockItems) do
 					item:setTimeout(AX_TIMEOUT_SECONDS)
 					local title = item.AXTitle
-					if title and watched[title] then
+					if title and hs.fnutils.contains(self.appsToWatch, title) then
 						local badge = item.AXBadgeValue or item.AXStatusLabel
 						if badge then
 							local n = tonumber(badge)
@@ -159,17 +153,13 @@ local function badgeTitle(newBadge, snoozed)
 		.. (snoozed > 0 and scriptDigits(snoozed, SUBSCRIPT) or "")
 end
 
-local function deleteItem(item)
-	if item then item:delete() end
-end
-
 function obj:appItem(appName)
 	if not self.appItems[appName] then self.appItems[appName] = hs.menubar.new(true, "AppBadgeWatcher." .. appName) end
 	return self.appItems[appName]
 end
 
 function obj:removeAppItem(appName)
-	deleteItem(self.appItems[appName])
+	if self.appItems[appName] then self.appItems[appName]:delete() end
 	self.appItems[appName] = nil
 end
 
@@ -183,7 +173,7 @@ function obj:showIndicator()
 end
 
 function obj:hideIndicator()
-	deleteItem(self.menu)
+	if self.menu then self.menu:delete() end
 	self.menu = nil
 end
 
@@ -200,11 +190,7 @@ function obj:updateMenuWithBadges(badges)
 	local iconDim = 19
 
 	local snoozeCallback = function()
-		local copy = {}
-		for k, v in pairs(self.lastBadges or {}) do
-			copy[k] = v
-		end
-		self.snoozedBadges = copy
+		self.snoozedBadges = hs.fnutils.copy(self.lastBadges or {})
 		hs.timer.doAfter(0, function() self:updateMenu(true) end)
 	end
 
@@ -330,15 +316,8 @@ function obj:_stopPoll()
 	self.timer = nil
 end
 
-local function contains(list, value)
-	for _, v in ipairs(list) do
-		if v == value then return true end
-	end
-	return false
-end
-
 function obj:_onAppEvent(appName, event)
-	if not self.running or not contains(self.appsToWatch, appName) then return end
+	if not self.running or not hs.fnutils.contains(self.appsToWatch, appName) then return end
 	if event == hs.application.watcher.launched then
 		self:_startPoll()
 	elseif event == hs.application.watcher.terminated and not self:_watchedRunning(appName) then

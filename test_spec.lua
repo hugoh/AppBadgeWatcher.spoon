@@ -95,6 +95,21 @@ before_each(function()
 				return nil
 			end,
 		},
+		fnutils = {
+			contains = function(list, value)
+				for _, v in ipairs(list) do
+					if v == value then return true end
+				end
+				return false
+			end,
+			copy = function(t)
+				local c = {}
+				for k, v in pairs(t) do
+					c[k] = v
+				end
+				return c
+			end,
+		},
 		image = {
 			iconForFile = function(path)
 				return {
